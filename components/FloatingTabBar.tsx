@@ -163,7 +163,9 @@ export default function FloatingTabBar({
           style={[dynamicStyles.blurContainer, { borderRadius }]}
         >
           <View style={dynamicStyles.background} />
-          <Animated.View style={[dynamicStyles.indicator, indicatorStyle]} />
+          {Platform.OS !== 'web' && (
+            <Animated.View style={[dynamicStyles.indicator, indicatorStyle]} />
+          )}
           <View style={styles.tabsContainer}>
             {tabs.map((tab, index) => {
               const isActive = activeTabIndex === index;
