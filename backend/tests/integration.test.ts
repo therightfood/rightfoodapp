@@ -3,43 +3,75 @@ import { api, authenticatedApi, signUpTestUser, expectStatus, connectWebSocket, 
 
 describe("API Integration Tests", () => {
   // Shared state for chaining tests (e.g., created resource IDs, auth tokens)
-  // let authToken: string;
-  // let resourceId: string;
+  let authToken: string;
 
-  // Note: The current OpenAPI spec only documents /api/auth/* endpoints.
-  // Auth functionality is tested via the signUpTestUser() helper, which is used in
-  // authenticated endpoint tests when they are added to the spec.
-  //
-  // Once additional endpoints are documented in the OpenAPI spec, add CRUD flow tests here.
-  // Tests run sequentially within describe, so you can chain state between them.
-  //
-  // Example without auth:
-  //
-  // test("Create resource", async () => {
-  //   const res = await api("/api/resources", {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ name: "Test" }),
-  //   });
-  //   await expectStatus(res, 201);
-  //   const data = await res.json();
-  //   resourceId = data.id;
-  // });
-  //
-  // Example with auth (cleanup is automatic):
-  //
-  // test("Sign up test user", async () => {
-  //   const { token, user } = await signUpTestUser();
-  //   authToken = token;
-  //   expect(authToken).toBeDefined();
-  // });
-  //
-  // test("Create authenticated resource", async () => {
-  //   const res = await authenticatedApi("/api/resources", authToken, {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({ name: "Test" }),
-  //   });
-  //   await expectStatus(res, 201);
-  // });
+  test("Sign up test user", async () => {
+    const { token } = await signUpTestUser();
+    authToken = token;
+    expect(authToken).toBeDefined();
+  });
+
+  describe("Profile endpoints", () => {
+    test("GET /api/profile - should return user profile when authenticated", async () => {
+      const res = await authenticatedApi("/api/profile", authToken);
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("user_id");
+      expect(data).toHaveProperty("disclaimer_acknowledged");
+      expect(data).toHaveProperty("onboarding_completed");
+    });
+
+    test("GET /api/profile - should return 401 when not authenticated", async () => {
+      const res = await api("/api/profile");
+      await expectStatus(res, 401);
+    });
+
+    test("PUT /api/profile - should update user profile when authenticated", async () => {
+      const res = await authenticatedApi("/api/profile", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          disclaimer_acknowledged: true,
+          medication: "Aspirin",
+          dose_mg: 100,
+          weight_kg: 70,
+          height_cm: 180,
+          age: 30,
+          gender: "M",
+          country: "US",
+          onboarding_completed: true,
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("user_id");
+      expect(data.medication).toBe("Aspirin");
+    });
+
+    test("PUT /api/profile - should accept partial updates", async () => {
+      const res = await authenticatedApi("/api/profile", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          age: 35,
+          country: "CA",
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data.age).toBe(35);
+      expect(data.country).toBe("CA");
+    });
+
+    test("PUT /api/profile - should return 401 when not authenticated", async () => {
+      const res = await api("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disclaimer_acknowledged: true }),
+      });
+      await expectStatus(res, 401);
+    });
+  });
 });
