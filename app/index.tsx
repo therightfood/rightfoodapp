@@ -91,43 +91,55 @@ export default function WelcomeScreen() {
     router.push('/sign-in');
   };
 
+  const children = (
+    <>
+      {/* Top section */}
+      <View style={styles.topSection}>
+        <View style={styles.wordmarkRow}>
+          <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
+          <Text style={styles.wordmark}>Right Food</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.headline}>Eat the right amount. Every meal.</Text>
+        <Text style={styles.subtext}>
+          Your AI meal companion for GLP-1 medications.
+        </Text>
+      </View>
+
+      {/* Bottom section */}
+      <View style={styles.bottomSection}>
+        <AnimatedPressable onPress={handleGetStarted} style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>Get started</Text>
+        </AnimatedPressable>
+
+        <View style={styles.signInRow}>
+          <Text style={styles.signInText}>Already have an account?</Text>
+          <AnimatedPressable onPress={handleSignIn}>
+            <Text style={styles.signInLink}> Sign in</Text>
+          </AnimatedPressable>
+        </View>
+      </View>
+    </>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Animated.View
-        style={[
-          styles.container,
-          { opacity, transform: [{ translateY }] },
-        ]}
-      >
-        {/* Top section */}
-        <View style={styles.topSection}>
-          <View style={styles.wordmarkRow}>
-            <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
-            <Text style={styles.wordmark}>Right Food</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.headline}>Eat the right amount. Every meal.</Text>
-          <Text style={styles.subtext}>
-            Your AI meal companion for GLP-1 medications.
-          </Text>
+      {Platform.OS === 'web' ? (
+        <View style={styles.container}>
+          {children}
         </View>
-
-        {/* Bottom section */}
-        <View style={styles.bottomSection}>
-          <AnimatedPressable onPress={handleGetStarted} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Get started</Text>
-          </AnimatedPressable>
-
-          <View style={styles.signInRow}>
-            <Text style={styles.signInText}>Already have an account?</Text>
-            <AnimatedPressable onPress={handleSignIn}>
-              <Text style={styles.signInLink}> Sign in</Text>
-            </AnimatedPressable>
-          </View>
-        </View>
-      </Animated.View>
+      ) : (
+        <Animated.View
+          style={[
+            styles.container,
+            { opacity, transform: [{ translateY }] },
+          ]}
+        >
+          {children}
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
