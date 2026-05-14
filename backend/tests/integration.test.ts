@@ -6,7 +6,11 @@ describe("API Integration Tests", () => {
   // let authToken: string;
   // let resourceId: string;
 
-  // TODO: Add integration tests here.
+  // Note: The current OpenAPI spec only documents /api/auth/* endpoints.
+  // Auth functionality is tested via the signUpTestUser() helper, which is used in
+  // authenticated endpoint tests when they are added to the spec.
+  //
+  // Once additional endpoints are documented in the OpenAPI spec, add CRUD flow tests here.
   // Tests run sequentially within describe, so you can chain state between them.
   //
   // Example without auth:
