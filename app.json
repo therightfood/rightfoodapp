@@ -15,7 +15,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.placeholder.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Right Food needs camera access to photograph your meals.",
+        "NSPhotoLibraryUsageDescription": "Right Food needs photo library access to select meal photos."
       }
     },
     "android": {
@@ -23,7 +25,8 @@
         "foregroundImage": "./assets/images/app-icon-jyn.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.placeholder.app"
+      "package": "com.placeholder.app",
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
@@ -33,7 +36,8 @@
       "expo-font",
       "expo-router",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      ["expo-camera", { "cameraPermission": "Right Food needs camera access to photograph your meals." }]
     ],
     "scheme": "nutriport",
     "experiments": {

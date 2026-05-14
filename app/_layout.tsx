@@ -99,6 +99,7 @@ export default function RootLayout() {
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   <Stack.Screen name="auth-popup" options={{ headerShown: false }} />
                   <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
+                  <Stack.Screen name="scan-result" options={{ headerShown: false }} />
                 </Stack>
                 <SystemBars style={"auto"} />
               </GestureHandlerRootView>
