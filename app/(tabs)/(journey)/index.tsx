@@ -1,0 +1,1072 @@
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SectionList,
+  RefreshControl,
+  Image,
+  Animated,
+  ImageSourcePropType,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { ChevronRight, AlertCircle, Camera, Share2, UtensilsCrossed } from 'lucide-react-native';
+import { COLORS } from '@/constants/Colors';
+import { apiGet } from '@/utils/api';
+import { AnimatedPressable } from '@/components/AnimatedPressable';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Meal {
+  id: string;
+  image_url: string;
+  dish_name: string;
+  created_at: string;
+  effective_portion_pct: number;
+  effective_calories: number;
+  effective_protein_g: number;
+  portion_suggestion_pct: number;
+  actual_portion_pct: number | null;
+  shared_at: string | null;
+  total_calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  confidence: number;
+  foods_identified: string[];
+  medication: string | null;
+  dose_mg: number | null;
+  time_of_day: string | null;
+  status: string;
+}
+
+interface Summary {
+  today_calories: number;
+  today_protein_g: number;
+  today_meal_count: number;
+  week_avg_daily_calories: number;
+  week_avg_daily_protein_g: number;
+  week_meal_count: number;
+}
+
+interface DailyBreakdown {
+  date: string;
+  calories: number;
+  meal_count: number;
+}
+
+interface WeekMacros {
+  avg_daily_calories: number;
+  avg_daily_protein_g: number;
+  avg_daily_carbs_g: number;
+  avg_daily_fat_g: number;
+}
+
+interface TDEE {
+  calorie_target: number;
+  protein_target: number;
+}
+
+interface JourneyResponse {
+  summary: Summary;
+  meals: Meal[];
+  daily_breakdown?: DailyBreakdown[];
+  week_macros?: WeekMacros;
+  tdee?: TDEE;
+}
+
+type Section = { title: string; data: Meal[] };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function resolveImageSource(source: string | number | ImageSourcePropType | undefined): ImageSourcePropType {
+  if (!source) return { uri: '' };
+  if (typeof source === 'string') return { uri: source };
+  return source as ImageSourcePropType;
+}
+
+function groupMealsByDate(meals: Meal[]): Section[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const groups: Record<string, Meal[]> = {};
+  for (const meal of meals) {
+    const mealDate = new Date(meal.created_at);
+    mealDate.setHours(0, 0, 0, 0);
+    let label: string;
+    if (mealDate.getTime() === today.getTime()) {
+      label = 'Today';
+    } else if (mealDate.getTime() === yesterday.getTime()) {
+      label = 'Yesterday';
+    } else {
+      label = new Date(meal.created_at).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+      });
+    }
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(meal);
+  }
+  return Object.entries(groups).map(([title, data]) => ({ title, data }));
+}
+
+// ─── Shimmer ─────────────────────────────────────────────────────────────────
+
+function ShimmerBlock({ style }: { style?: object }) {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.8, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  if (Platform.OS === 'web') {
+    return <View style={[{ backgroundColor: COLORS.surfaceSecondary, opacity: 0.5 }, style]} />;
+  }
+  return <Animated.View style={[{ backgroundColor: COLORS.surfaceSecondary, opacity }, style]} />;
+}
+
+function SkeletonLoader() {
+  return (
+    <View style={styles.skeletonContainer}>
+      <ShimmerBlock style={styles.skeletonCard} />
+      <ShimmerBlock style={styles.skeletonRow} />
+      <ShimmerBlock style={styles.skeletonRow} />
+      <ShimmerBlock style={styles.skeletonRow} />
+    </View>
+  );
+}
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
+
+export default function JourneyScreen() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [activeTab, setActiveTab] = useState<'week' | 'alltime'>('week');
+  const [dailyBreakdown, setDailyBreakdown] = useState<DailyBreakdown[]>([]);
+  const [weekMacros, setWeekMacros] = useState<WeekMacros | null>(null);
+  const [tdee, setTdee] = useState<TDEE | null>(null);
+
+  const sections = useMemo(() => groupMealsByDate(meals), [meals]);
+
+  const fetchJourney = useCallback(async (isRefresh = false) => {
+    console.log('[Journey] Fetching journey data', { isRefresh });
+    if (!isRefresh) setLoading(true);
+    setError(null);
+    try {
+      const data = await apiGet<JourneyResponse>('/api/journey');
+      console.log('[Journey] Journey data received', {
+        mealCount: data.meals?.length,
+        todayCalories: data.summary?.today_calories,
+        hasDailyBreakdown: !!data.daily_breakdown,
+        hasWeekMacros: !!data.week_macros,
+        hasTdee: !!data.tdee,
+      });
+      setSummary(data.summary);
+      setMeals(data.meals || []);
+      setDailyBreakdown(data.daily_breakdown || []);
+      setWeekMacros(data.week_macros || null);
+      setTdee(data.tdee || null);
+    } catch (err: any) {
+      console.log('[Journey] Error fetching journey', err?.message);
+      setError(err?.message || 'Unknown error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[Journey] Screen focused — refreshing data');
+      fetchJourney();
+    }, [fetchJourney])
+  );
+
+  const handleRefresh = useCallback(() => {
+    console.log('[Journey] Pull-to-refresh triggered');
+    setRefreshing(true);
+    fetchJourney(true);
+  }, [fetchJourney]);
+
+  const handleMealPress = useCallback((meal: Meal) => {
+    console.log('[Journey] Meal row tapped', { mealId: meal.id, dishName: meal.dish_name });
+    router.push({
+      pathname: '/scan-result',
+      params: {
+        photoUri: meal.image_url,
+        analysisId: meal.id,
+        dishName: meal.dish_name || 'Unknown meal',
+        portionPct: String(meal.effective_portion_pct),
+        totalCalories: String(meal.total_calories || 0),
+        proteinG: String(meal.protein_g || 0),
+        carbsG: String(meal.carbs_g || 0),
+        fatG: String(meal.fat_g || 0),
+        fiberG: String(meal.fiber_g || 0),
+        confidence: String(meal.confidence || 0),
+        foodsIdentified: JSON.stringify(meal.foods_identified || []),
+        medication: meal.medication || '',
+        doseMg: String(meal.dose_mg || ''),
+        confirmedMealCount: '5',
+        error: '',
+      },
+    });
+  }, [router]);
+
+  const handleScanPress = useCallback(() => {
+    console.log('[Journey] Scan a meal button pressed');
+    router.push('/(tabs)/(scan)');
+  }, [router]);
+
+  const handleRetryPress = useCallback(() => {
+    console.log('[Journey] Retry button pressed');
+    fetchJourney();
+  }, [fetchJourney]);
+
+  const handleTabChange = useCallback((tab: 'week' | 'alltime') => {
+    console.log('[Journey] Tab changed', { tab });
+    setActiveTab(tab);
+  }, []);
+
+  // ── Render states ──────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <SkeletonLoader />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.centerFlex}>
+          <AlertCircle size={32} color={COLORS.danger} />
+          <Text style={styles.errorTitle}>Couldn't load your journey</Text>
+          <Text style={styles.errorSubtitle}>Check your connection and try again</Text>
+          <AnimatedPressable style={styles.retryButton} onPress={handleRetryPress}>
+            <Text style={styles.retryButtonText}>Try again</Text>
+          </AnimatedPressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (meals.length === 0) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.centerFlex}>
+          <View style={styles.emptyIconCircle}>
+            <UtensilsCrossed size={40} color="#4A7C59" strokeWidth={1.5} />
+          </View>
+          <Text style={styles.emptyTitle}>Your journey starts with one meal.</Text>
+          <Text style={styles.emptySubtitle}>
+            Scan something you're about to eat.
+          </Text>
+          <AnimatedPressable style={styles.scanButton} onPress={handleScanPress}>
+            <Text style={styles.scanButtonText}>Scan a meal</Text>
+          </AnimatedPressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Main content ───────────────────────────────────────────────────────────
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index, section }) => (
+          <MealRow
+            meal={item}
+            isFirst={index === 0}
+            isLast={index === section.data.length - 1}
+            onPress={handleMealPress}
+          />
+        )}
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>{section.title}</Text>
+            <View style={styles.sectionHeaderLine} />
+          </View>
+        )}
+        ListHeaderComponent={
+          <JourneyHeader
+            summary={summary!}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            dailyBreakdown={dailyBreakdown}
+            weekMacros={weekMacros}
+            tdee={tdee}
+          />
+        }
+        contentContainerStyle={styles.listContent}
+        stickySectionHeadersEnabled={false}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.primary}
+          />
+        }
+      />
+    </SafeAreaView>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function JourneyHeader({
+  summary,
+  activeTab,
+  onTabChange,
+  dailyBreakdown,
+  weekMacros,
+  tdee,
+}: {
+  summary: Summary;
+  activeTab: 'week' | 'alltime';
+  onTabChange: (tab: 'week' | 'alltime') => void;
+  dailyBreakdown: DailyBreakdown[];
+  weekMacros: WeekMacros | null;
+  tdee: TDEE | null;
+}) {
+  const todayCalories = Math.round(summary.today_calories);
+  const todayProtein = Math.round(summary.today_protein_g);
+  const todayMealCount = summary.today_meal_count;
+
+  // Animated tab indicator
+  const tabIndicatorX = useRef(new Animated.Value(0)).current;
+
+  const handleTabPress = useCallback((tab: 'week' | 'alltime') => {
+    Animated.spring(tabIndicatorX, {
+      toValue: tab === 'week' ? 0 : 1,
+      useNativeDriver: Platform.OS !== 'web',
+      tension: 180,
+      friction: 18,
+    }).start();
+    onTabChange(tab);
+  }, [onTabChange, tabIndicatorX]);
+
+  return (
+    <View>
+      <View style={styles.titleRow}>
+        <Text style={styles.screenTitle}>My Journey</Text>
+      </View>
+
+      {/* Summary card — 3 metric blocks */}
+      <View style={styles.summaryCard}>
+        <View style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{todayCalories}</Text>
+          <Text style={styles.metricLabel}>TODAY'S KCAL</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{todayProtein}</Text>
+          <Text style={styles.metricLabel}>TODAY'S PROTEIN</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{todayMealCount}</Text>
+          <Text style={styles.metricLabel}>TODAY'S MEALS</Text>
+        </View>
+      </View>
+
+      {/* Tab switcher with animated indicator */}
+      <View style={styles.tabSwitcher}>
+        {Platform.OS !== 'web' && (
+          <Animated.View
+            style={[
+              styles.tabIndicator,
+              {
+                transform: [
+                  {
+                    translateX: tabIndicatorX.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 160],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        {Platform.OS === 'web' && activeTab === 'week' && (
+          <View style={[styles.tabIndicator, { transform: [{ translateX: 0 }] }]} />
+        )}
+        {Platform.OS === 'web' && activeTab === 'alltime' && (
+          <View style={[styles.tabIndicator, { transform: [{ translateX: 160 }] }]} />
+        )}
+        <AnimatedPressable
+          style={styles.tabButton}
+          onPress={() => handleTabPress('week')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'week' && styles.tabButtonTextActive]}>
+            This Week
+          </Text>
+        </AnimatedPressable>
+        <AnimatedPressable
+          style={styles.tabButton}
+          onPress={() => handleTabPress('alltime')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'alltime' && styles.tabButtonTextActive]}>
+            All Time
+          </Text>
+        </AnimatedPressable>
+      </View>
+
+      {activeTab === 'week' && (
+        <NutritionDashboard
+          dailyBreakdown={dailyBreakdown}
+          weekMacros={weekMacros}
+          tdee={tdee}
+        />
+      )}
+
+      {activeTab === 'alltime' && (
+        <View style={styles.allTimeNote}>
+          <Text style={styles.allTimeNoteText}>All your scanned meals</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── NutritionDashboard ───────────────────────────────────────────────────────
+
+function NutritionDashboard({
+  dailyBreakdown,
+  weekMacros,
+  tdee,
+}: {
+  dailyBreakdown: DailyBreakdown[];
+  weekMacros: WeekMacros | null;
+  tdee: TDEE | null;
+}) {
+  const calorieTarget = tdee?.calorie_target ?? 1500;
+  const proteinTarget = tdee?.protein_target ?? 84;
+  const maxCalories = Math.max(...dailyBreakdown.map(d => d.calories), calorieTarget, 1);
+  const targetsText = `Daily: ${calorieTarget} kcal · Protein: ${proteinTarget}g`;
+
+  return (
+    <View style={styles.dashboardContainer}>
+      {/* Targets row */}
+      <View style={styles.targetsRow}>
+        <Text style={styles.targetsLabel}>Your targets</Text>
+        <Text style={styles.targetsValue}>{targetsText}</Text>
+      </View>
+
+      {/* Bar chart */}
+      <View style={styles.chartContainer}>
+        <BarChart
+          data={dailyBreakdown}
+          maxValue={maxCalories}
+          targetValue={calorieTarget}
+        />
+      </View>
+
+      {/* Macro 2x2 grid — simple stat blocks */}
+      {weekMacros && (
+        <View style={styles.macroGrid}>
+          <MacroCard label="Avg Daily Calories" value={weekMacros.avg_daily_calories} unit="kcal" />
+          <MacroCard label="Avg Protein" value={weekMacros.avg_daily_protein_g} unit="g" />
+          <MacroCard label="Avg Carbs" value={weekMacros.avg_daily_carbs_g} unit="g" />
+          <MacroCard label="Avg Fat" value={weekMacros.avg_daily_fat_g} unit="g" />
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── BarChart ─────────────────────────────────────────────────────────────────
+
+function BarChart({
+  data,
+  maxValue,
+  targetValue,
+}: {
+  data: DailyBreakdown[];
+  maxValue: number;
+  targetValue: number;
+}) {
+  const chartHeight = 120;
+  const targetLineY = chartHeight - (targetValue / maxValue) * chartHeight;
+
+  return (
+    <View style={styles.barChartWrapper}>
+      {/* Target dashed line */}
+      <View style={[styles.targetLineContainer, { top: targetLineY }]}>
+        {Array.from({ length: 20 }).map((_, i) => (
+          <View key={i} style={styles.dash} />
+        ))}
+      </View>
+
+      {/* Bars row */}
+      <View style={styles.barsRow}>
+        {data.map((day, index) => {
+          const barHeightPct = maxValue > 0 ? (day.calories / maxValue) : 0;
+          const barHeight = Math.max(barHeightPct * chartHeight, day.calories > 0 ? 4 : 0);
+          const barBg = day.calories > 0 ? COLORS.primary : COLORS.surfaceSecondary;
+
+          return (
+            <View key={index} style={styles.barColumn}>
+              <View style={styles.barTrack}>
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      height: barHeight,
+                      backgroundColor: barBg,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.barLabel}>{day.date}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─── MacroCard ────────────────────────────────────────────────────────────────
+
+function MacroCard({ label, value, unit }: { label: string; value: number; unit: string }) {
+  const displayValue = Math.round(value);
+
+  return (
+    <View style={styles.macroCard}>
+      <Text style={styles.macroValue}>{displayValue}</Text>
+      <Text style={styles.macroUnit}>{unit}</Text>
+      <Text style={styles.macroLabel}>{label}</Text>
+    </View>
+  );
+}
+
+interface MealRowProps {
+  meal: Meal;
+  isFirst: boolean;
+  isLast: boolean;
+  onPress: (meal: Meal) => void;
+}
+
+function MealRow({ meal, isFirst, isLast, onPress }: MealRowProps) {
+  const timeString = new Date(meal.created_at).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const portionPct = Math.round(meal.effective_portion_pct);
+  const calories = Math.round(meal.effective_calories);
+  const dishName = meal.dish_name || 'Unknown meal';
+
+  const isOverPortion =
+    meal.actual_portion_pct !== null &&
+    meal.actual_portion_pct > meal.portion_suggestion_pct;
+
+  const borderLeftColor = isOverPortion ? '#C8933A' : '#4A7C59';
+  const metaText = `${timeString} · Ate ${portionPct}%`;
+
+  const rowStyle = [
+    styles.mealRow,
+    { borderLeftColor },
+    isFirst && styles.mealRowFirst,
+    isLast && styles.mealRowLast,
+    !isLast && styles.mealRowDivider,
+  ];
+
+  const hasImage = !!meal.image_url;
+
+  return (
+    <AnimatedPressable style={rowStyle} onPress={() => onPress(meal)}>
+      <View style={styles.thumbnail}>
+        {hasImage ? (
+          <Image
+            source={resolveImageSource(meal.image_url)}
+            style={styles.thumbnailImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.thumbnailFallback}>
+            <Camera size={20} color={COLORS.textTertiary} />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.mealContent}>
+        <Text style={styles.mealName} numberOfLines={1}>{dishName}</Text>
+        <View style={styles.mealMetaRow}>
+          <Text style={styles.mealMeta}>{metaText}</Text>
+          {meal.shared_at && (
+            <View style={styles.sharedBadge}>
+              <Share2 size={9} color={COLORS.primary} strokeWidth={2.5} />
+              <Text style={styles.sharedBadgeText}>Shared</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.mealRight}>
+        <Text style={styles.mealCalories}>{calories}</Text>
+        <Text style={styles.mealCalUnit}>kcal</Text>
+      </View>
+
+      <ChevronRight size={16} color={COLORS.textTertiary} />
+    </AnimatedPressable>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  // Skeleton
+  skeletonContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    gap: 12,
+  },
+  skeletonCard: {
+    height: 100,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  skeletonRow: {
+    height: 72,
+    borderRadius: 8,
+  },
+
+  // Center layouts
+  centerFlex: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+
+  // Error state
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginTop: 12,
+  },
+  errorSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+  },
+  retryButton: {
+    height: 48,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  retryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Empty state
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    color: '#7A6A5A',
+    textAlign: 'center',
+    marginTop: 8,
+    maxWidth: 260,
+    lineHeight: 22,
+  },
+  scanButton: {
+    height: 52,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingHorizontal: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  scanButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // List
+  listContent: {
+    paddingBottom: 100,
+  },
+
+  // Header
+  titleRow: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  screenTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+
+  // Summary card — 3 metric blocks
+  summaryCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8E6E0',
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metricBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  metricValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    fontVariant: ['tabular-nums'],
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7A6A5A',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  metricDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E8E6E0',
+  },
+
+  // Section header
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+    backgroundColor: COLORS.background,
+  },
+  sectionHeaderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7A6A5A',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  sectionHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E8E6E0',
+    marginLeft: 10,
+  },
+
+  // Meal row
+  mealRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.surface,
+    marginHorizontal: 16,
+    marginBottom: 1,
+    minHeight: 72,
+    borderLeftWidth: 3,
+  },
+  mealRowFirst: {
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  mealRowLast: {
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    marginBottom: 0,
+  },
+  mealRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+
+  // Thumbnail
+  thumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  thumbnailImage: {
+    width: 56,
+    height: 56,
+  },
+  thumbnailFallback: {
+    width: 56,
+    height: 56,
+    backgroundColor: COLORS.surfaceSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Meal content
+  mealContent: {
+    flex: 1,
+  },
+  mealName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  mealMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  mealMeta: {
+    fontSize: 13,
+    color: '#7A6A5A',
+  },
+  mealRight: {
+    alignItems: 'flex-end',
+  },
+  mealCalories: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  mealCalUnit: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    marginTop: 1,
+  },
+  sharedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: COLORS.primaryMuted,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sharedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+
+  // Tab switcher
+  tabSwitcher: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    backgroundColor: COLORS.surfaceSecondary,
+    borderRadius: 10,
+    padding: 3,
+    position: 'relative',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 3,
+    left: 3,
+    width: '50%',
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
+  },
+  tabButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7A6A5A',
+  },
+  tabButtonTextActive: {
+    color: '#1A1A1A',
+    fontWeight: '600',
+  },
+
+  // All time note
+  allTimeNote: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  allTimeNoteText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+
+  // Dashboard container
+  dashboardContainer: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+  },
+  targetsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  targetsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    letterSpacing: 0.3,
+  },
+  targetsValue: {
+    fontSize: 12,
+    color: '#7A6A5A',
+  },
+  chartContainer: {
+    marginTop: 4,
+  },
+
+  // Bar chart
+  barChartWrapper: {
+    height: 150,
+    position: 'relative',
+    marginTop: 8,
+  },
+  targetLineContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  dash: {
+    width: 6,
+    height: 1.5,
+    backgroundColor: COLORS.textTertiary,
+    borderRadius: 1,
+  },
+  barsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 120,
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+    height: 150,
+    justifyContent: 'flex-end',
+  },
+  barTrack: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bar: {
+    width: '80%',
+    borderRadius: 4,
+    minHeight: 0,
+  },
+  barLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  // Macro grid — simple stat blocks
+  macroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  macroCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#F5F3EF',
+    borderRadius: 10,
+    padding: 14,
+  },
+  macroValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  macroUnit: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
+  macroLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+});
