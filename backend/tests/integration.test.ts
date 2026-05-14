@@ -280,4 +280,114 @@ describe("API Integration Tests", () => {
       await expectStatus(res, 401);
     });
   });
+
+  describe("Recipe endpoints", () => {
+    test("POST /api/recipes/extract-ingredients - should extract ingredients from image", async () => {
+      const form = new FormData();
+      form.append("file", createTestFile("ingredients.jpg", "fake image data", "image/jpeg"));
+
+      const res = await authenticatedApi("/api/recipes/extract-ingredients", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 200, 422);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("ingredients");
+        expect(Array.isArray(data.ingredients)).toBe(true);
+      }
+    });
+
+    test("POST /api/recipes/extract-ingredients - should return 401 when not authenticated", async () => {
+      const form = new FormData();
+      form.append("file", createTestFile("ingredients.jpg", "fake image data", "image/jpeg"));
+
+      const res = await api("/api/recipes/extract-ingredients", {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 401);
+    });
+
+    test("POST /api/recipes/extract-ingredients - should return 400 when file is missing", async () => {
+      const form = new FormData();
+
+      const res = await authenticatedApi("/api/recipes/extract-ingredients", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("POST /api/recipes/extract-ingredients - should handle large files (200 or 413)", async () => {
+      const form = new FormData();
+      const largeContent = "x".repeat(5 * 1024 * 1024);
+      form.append("file", createTestFile("large.jpg", largeContent, "image/jpeg"));
+
+      const res = await authenticatedApi("/api/recipes/extract-ingredients", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 200, 413, 422);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("ingredients");
+      }
+    });
+
+    test("POST /api/recipes/generate - should generate recipes from ingredients", async () => {
+      const res = await authenticatedApi("/api/recipes/generate", authToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredients: "chicken, rice, broccoli",
+        }),
+      });
+      await expectStatus(res, 200, 422);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("session_id");
+        expect(data).toHaveProperty("recipes");
+        expect(Array.isArray(data.recipes)).toBe(true);
+      }
+    });
+
+    test("POST /api/recipes/generate - should accept optional medication and dose", async () => {
+      const res = await authenticatedApi("/api/recipes/generate", authToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredients: "salmon, asparagus, lemon",
+          medication: "Ozempic",
+          dose_mg: 1,
+        }),
+      });
+      await expectStatus(res, 200, 422);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("session_id");
+        expect(data).toHaveProperty("recipes");
+      }
+    });
+
+    test("POST /api/recipes/generate - should return 401 when not authenticated", async () => {
+      const res = await api("/api/recipes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredients: "chicken, rice, broccoli",
+        }),
+      });
+      await expectStatus(res, 401);
+    });
+
+    test("POST /api/recipes/generate - should return 400 when ingredients are missing", async () => {
+      const res = await authenticatedApi("/api/recipes/generate", authToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      await expectStatus(res, 400);
+    });
+  });
 });

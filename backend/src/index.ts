@@ -3,6 +3,7 @@ import * as appSchema from './db/schema/schema.js';
 import * as authSchema from './db/schema/auth-schema.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerScanRoutes } from './routes/scan.js';
+import { registerRecipeRoutes } from './routes/recipes.js';
 
 // Combine app and auth schemas
 const schema = { ...appSchema, ...authSchema };
@@ -34,6 +35,7 @@ app.withStorage();
 // IMPORTANT: Always use registration functions to avoid circular dependency issues
 registerProfileRoutes(app);
 registerScanRoutes(app);
+registerRecipeRoutes(app);
 
 await app.run();
 app.logger.info('Application running');

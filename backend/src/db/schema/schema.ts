@@ -40,3 +40,11 @@ export const mealAnalyses = pgTable('meal_analyses', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+export const recipeSessions = pgTable('recipe_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  ingredientsInput: text('ingredients_input').notNull(),
+  recipesReturned: jsonb('recipes_returned').default([]),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
