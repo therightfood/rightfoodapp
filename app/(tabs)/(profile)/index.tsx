@@ -222,7 +222,9 @@ export default function ProfileScreen() {
   const handleToggleReminder = useCallback((value: boolean) => {
     console.log('[Profile] Reminder toggle pressed:', value);
     if (Platform.OS !== 'web') {
+      if (Platform.OS !== 'web') {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
     }
     setReminderEnabled(value);
     saveReminders(value, reminderTimes);

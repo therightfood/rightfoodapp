@@ -131,6 +131,9 @@ function ShimmerBlock({ style }: { style?: object }) {
     return () => anim.stop();
   }, [opacity]);
 
+  if (Platform.OS === 'web') {
+    return <View style={[{ backgroundColor: COLORS.surfaceSecondary, opacity: 0.5 }, style]} />;
+  }
   return <Animated.View style={[{ backgroundColor: COLORS.surfaceSecondary, opacity }, style]} />;
 }
 
