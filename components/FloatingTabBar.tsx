@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,13 @@ import {
   StyleSheet,
   Platform,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/IconSymbol';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@react-navigation/native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  interpolate,
-} from 'react-native-reanimated';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Href } from 'expo-router';
 
@@ -46,7 +41,7 @@ export default function FloatingTabBar({
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
-  const animatedValue = useSharedValue(0);
+  const animatedValue = useRef(new Animated.Value(0)).current;
 
   // Improved active tab detection with better path matching
   const activeTabIndex = React.useMemo(() => {
@@ -86,11 +81,13 @@ export default function FloatingTabBar({
 
   React.useEffect(() => {
     if (activeTabIndex >= 0) {
-      animatedValue.value = withSpring(activeTabIndex, {
+      Animated.spring(animatedValue, {
+        toValue: activeTabIndex,
         damping: 20,
         stiffness: 120,
         mass: 1,
-      });
+        useNativeDriver: true,
+      }).start();
     }
   }, [activeTabIndex, animatedValue]);
 
@@ -102,20 +99,18 @@ export default function FloatingTabBar({
 
   const tabWidthPercent = ((100 / tabs.length) - 1).toFixed(2);
 
-  const indicatorStyle = useAnimatedStyle(() => {
-    const tabWidth = (containerWidth - 8) / tabs.length; // Account for container padding (4px on each side)
-    return {
-      transform: [
-        {
-          translateX: interpolate(
-            animatedValue.value,
-            [0, tabs.length - 1],
-            [0, tabWidth * (tabs.length - 1)]
-          ),
-        },
-      ],
-    };
-  });
+  const tabWidth = (containerWidth - 8) / tabs.length;
+  const indicatorStyle = tabs.length <= 1
+    ? {}
+    : {
+        transform: [{
+          translateX: animatedValue.interpolate({
+            inputRange: tabs.map((_, i) => i),
+            outputRange: tabs.map((_, i) => i * tabWidth),
+            extrapolate: 'clamp',
+          }),
+        }],
+      };
 
   // Dynamic styles based on theme
   const dynamicStyles = {
