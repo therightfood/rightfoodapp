@@ -189,7 +189,7 @@ function Step2({
     Animated.timing(doseOpacity, {
       toValue: 1,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
   };
 
@@ -632,13 +632,13 @@ export default function OnboardingScreen() {
       Animated.timing(stepOpacity, {
         toValue: 0,
         duration: 150,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start(() => {
         setStep(nextStep);
         Animated.timing(stepOpacity, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }).start();
       });
     },

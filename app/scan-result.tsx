@@ -10,6 +10,7 @@ import {
   ImageSourcePropType,
   Animated,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -148,8 +149,8 @@ export default function ScanResultScreen() {
       console.log('[ScanResult] PATCH succeeded');
       setConfirmState('confirmed');
       Animated.sequence([
-        Animated.timing(confirmScale, { toValue: 1.04, duration: 150, useNativeDriver: true }),
-        Animated.timing(confirmScale, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(confirmScale, { toValue: 1.04, duration: 150, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(confirmScale, { toValue: 1, duration: 150, useNativeDriver: Platform.OS !== 'web' }),
       ]).start();
     } catch (err) {
       console.error('[ScanResult] PATCH error:', err);

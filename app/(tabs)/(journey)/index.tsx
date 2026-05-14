@@ -8,6 +8,7 @@ import {
   Image,
   Animated,
   ImageSourcePropType,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -122,8 +123,8 @@ function ShimmerBlock({ style }: { style?: object }) {
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.8, duration: 600, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.4, duration: 600, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.8, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
       ])
     );
     anim.start();
