@@ -42,6 +42,7 @@ export const mealAnalyses = pgTable('meal_analyses', {
   timeOfDay: text('time_of_day'),
   calorieDesity: text('calorie_density'),
   status: text('status').notNull().default('pending'),
+  sharedAt: timestamp('shared_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

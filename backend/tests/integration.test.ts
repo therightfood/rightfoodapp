@@ -412,6 +412,34 @@ describe("API Integration Tests", () => {
       });
       await expectStatus(res, 401);
     });
+
+    test("PATCH /api/scan/analyses/{id}/share - should mark analysis as shared when it exists", async () => {
+      if (!analysisId) {
+        // Skip if we couldn't create an analysis with 200 status
+        return;
+      }
+      const res = await authenticatedApi(`/api/scan/analyses/${analysisId}/share`, authToken, {
+        method: "PATCH",
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("id");
+      expect(data).toHaveProperty("shared_at");
+    });
+
+    test("PATCH /api/scan/analyses/{id}/share - should return 404 for non-existent analysis", async () => {
+      const res = await authenticatedApi(`/api/scan/analyses/nonexistent-id/share`, authToken, {
+        method: "PATCH",
+      });
+      await expectStatus(res, 404);
+    });
+
+    test("PATCH /api/scan/analyses/{id}/share - should return 401 when not authenticated", async () => {
+      const res = await api(`/api/scan/analyses/some-id/share`, {
+        method: "PATCH",
+      });
+      await expectStatus(res, 401);
+    });
   });
 
   describe("Journey endpoints", () => {

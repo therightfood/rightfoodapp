@@ -1,0 +1,1 @@
+ALTER TABLE "meal_analyses" ADD COLUMN "shared_at" timestamp with time zone;

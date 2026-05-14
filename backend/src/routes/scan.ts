@@ -720,6 +720,93 @@ export function registerScanRoutes(app: App) {
     };
   });
 
+  // PATCH /api/scan/analyses/:id/share - Mark meal as shared
+  app.fastify.patch('/api/scan/analyses/:id/share', {
+    schema: {
+      description: 'Mark a meal analysis as shared',
+      tags: ['scan'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'Analysis ID' },
+        },
+      },
+      response: {
+        200: {
+          description: 'Analysis marked as shared successfully',
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            shared_at: { type: ['string', 'null'], format: 'date-time' },
+          },
+        },
+        401: {
+          description: 'Unauthorized',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+        404: {
+          description: 'Analysis not found or belongs to a different user',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ): Promise<{ id: string; shared_at: string | null } | void> => {
+    const session = await requireAuth(request, reply);
+    if (!session) return;
+
+    const userId = session.user.id;
+    const { id } = request.params;
+
+    app.logger.info({ userId, id }, 'Marking meal analysis as shared');
+
+    // Find the analysis record
+    const analysis = await app.db.query.mealAnalyses.findFirst({
+      where: eq(schema.mealAnalyses.id, id),
+    });
+
+    if (!analysis) {
+      app.logger.warn({ userId, id }, 'Analysis not found');
+      return reply.status(404).send({
+        error: 'Not found',
+      });
+    }
+
+    // Verify user ownership
+    if (analysis.userId !== userId) {
+      app.logger.warn({ userId, id, analysisUserId: analysis.userId }, 'Analysis belongs to different user');
+      return reply.status(404).send({
+        error: 'Not found',
+      });
+    }
+
+    // Update the analysis with shared_at timestamp
+    const [updatedAnalysis] = await app.db
+      .update(schema.mealAnalyses)
+      .set({
+        sharedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.mealAnalyses.id, id))
+      .returning();
+
+    app.logger.info({ userId, id }, 'Meal analysis marked as shared successfully');
+
+    return {
+      id: updatedAnalysis.id,
+      shared_at: updatedAnalysis.sharedAt ? updatedAnalysis.sharedAt.toISOString() : null,
+    };
+  });
+
   // GET /api/journey - Get meal journey analytics
   app.fastify.get('/api/journey', {
     schema: {
@@ -766,6 +853,7 @@ export function registerScanRoutes(app: App) {
                   dose_mg: { type: ['string', 'null'] },
                   time_of_day: { type: ['string', 'null'] },
                   status: { type: 'string' },
+                  shared_at: { type: ['string', 'null'], format: 'date-time' },
                 },
               },
             },
@@ -923,6 +1011,7 @@ export function registerScanRoutes(app: App) {
         dose_mg: meal.doseMg ? meal.doseMg.toString() : null,
         time_of_day: meal.timeOfDay || null,
         status: meal.status,
+        shared_at: meal.sharedAt ? meal.sharedAt.toISOString() : null,
       };
     });
 
