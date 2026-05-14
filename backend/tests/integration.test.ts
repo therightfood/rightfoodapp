@@ -75,6 +75,122 @@ describe("API Integration Tests", () => {
     });
   });
 
+  describe("Profile stats endpoints", () => {
+    test("GET /api/profile/stats - should return user statistics when authenticated", async () => {
+      const res = await authenticatedApi("/api/profile/stats", authToken);
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("total_meals_scanned");
+      expect(data).toHaveProperty("days_using_app");
+      expect(data).toHaveProperty("current_streak");
+    });
+
+    test("GET /api/profile/stats - should return 401 when not authenticated", async () => {
+      const res = await api("/api/profile/stats");
+      await expectStatus(res, 401);
+    });
+  });
+
+  describe("Reminder endpoints", () => {
+    test("PUT /api/profile/reminders - should update reminders when authenticated", async () => {
+      const res = await authenticatedApi("/api/profile/reminders", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_enabled: true,
+          reminder_times: ["09:00", "14:00", "18:00"],
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("reminder_enabled");
+      expect(data).toHaveProperty("reminder_times");
+      expect(data.reminder_enabled).toBe(true);
+    });
+
+    test("PUT /api/profile/reminders - should accept fewer reminder times", async () => {
+      const res = await authenticatedApi("/api/profile/reminders", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_enabled: false,
+          reminder_times: ["10:00"],
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data.reminder_enabled).toBe(false);
+    });
+
+    test("PUT /api/profile/reminders - should return 400 when reminder_enabled is missing", async () => {
+      const res = await authenticatedApi("/api/profile/reminders", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_times: ["10:00"],
+        }),
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("PUT /api/profile/reminders - should return 400 when reminder_times is missing", async () => {
+      const res = await authenticatedApi("/api/profile/reminders", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_enabled: true,
+        }),
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("PUT /api/profile/reminders - should return 400 when reminder_times exceeds maxItems", async () => {
+      const res = await authenticatedApi("/api/profile/reminders", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_enabled: true,
+          reminder_times: ["09:00", "12:00", "15:00", "18:00"],
+        }),
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("PUT /api/profile/reminders - should return 401 when not authenticated", async () => {
+      const res = await api("/api/profile/reminders", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_enabled: true,
+          reminder_times: ["10:00"],
+        }),
+      });
+      await expectStatus(res, 401);
+    });
+  });
+
+  describe("Account deletion endpoints", () => {
+    test("DELETE /api/account - should delete account when authenticated", async () => {
+      // Create a separate test user for deletion
+      const { token: deletionToken } = await signUpTestUser();
+
+      const res = await authenticatedApi("/api/account", deletionToken, {
+        method: "DELETE",
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("deleted");
+      expect(data.deleted).toBe(true);
+    });
+
+    test("DELETE /api/account - should return 401 when not authenticated", async () => {
+      const res = await api("/api/account", {
+        method: "DELETE",
+      });
+      await expectStatus(res, 401);
+    });
+  });
+
   describe("Scan endpoints", () => {
     let uploadedImageUrl: string;
     let analysisId: string;

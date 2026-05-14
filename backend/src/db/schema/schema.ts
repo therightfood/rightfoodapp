@@ -7,14 +7,17 @@ export const userProfiles = pgTable('user_profiles', {
   disclaimerAcknowledged: boolean('disclaimer_acknowledged').notNull().default(false),
   medication: text('medication'),
   doseMg: numeric('dose_mg'),
+  doseChangedAt: timestamp('dose_changed_at', { withTimezone: true }),
   weightKg: numeric('weight_kg'),
   heightCm: numeric('height_cm'),
   age: integer('age'),
   gender: text('gender'),
   country: text('country'),
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  reminderEnabled: boolean('reminder_enabled').notNull().default(false),
+  reminderTimes: jsonb('reminder_times').default([]),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const mealAnalyses = pgTable('meal_analyses', {
@@ -37,8 +40,8 @@ export const mealAnalyses = pgTable('meal_analyses', {
   timeOfDay: text('time_of_day'),
   calorieDesity: text('calorie_density'),
   status: text('status').notNull().default('pending'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const recipeSessions = pgTable('recipe_sessions', {
@@ -46,7 +49,7 @@ export const recipeSessions = pgTable('recipe_sessions', {
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   ingredientsInput: text('ingredients_input').notNull(),
   recipesReturned: jsonb('recipes_returned').default([]),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const menuSessions = pgTable('menu_sessions', {

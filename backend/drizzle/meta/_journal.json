@@ -43,6 +43,20 @@
       "when": 1778757455478,
       "tag": "20260514111735_open_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778758306296,
+      "tag": "20260514113146_far_abomination",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778758674965,
+      "tag": "20260514113754_cloudy_wiccan",
+      "breakpoints": true
     }
   ]
 }
