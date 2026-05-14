@@ -1,30 +1,24 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Camera, Settings } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
 
-export default function HomeScreen() {
-  const router = useRouter();
-
+export default function ScanScreen() {
   const handleSettings = () => {
-    console.log('[Home] Settings button pressed');
+    console.log('[Scan] Settings button pressed');
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.headerTitle}>Right Food</Text>
-        <AnimatedPressable onPress={handleSettings} style={styles.settingsButton}>
+        <AnimatedPressable style={styles.settingsButton} onPress={handleSettings}>
           <Settings size={22} color={COLORS.textSecondary} strokeWidth={2} />
         </AnimatedPressable>
       </View>
-
-      {/* Centered content */}
       <View style={styles.centerContent}>
         <View style={styles.iconCircle}>
           <Camera size={48} color={COLORS.primary} strokeWidth={1.5} />
@@ -37,10 +31,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -49,9 +40,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
-  headerSpacer: {
-    width: 44,
-  },
+  headerSpacer: { width: 44 },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',

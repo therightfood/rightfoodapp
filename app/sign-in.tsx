@@ -35,7 +35,7 @@ export default function SignInScreen() {
   useEffect(() => {
     if (user) {
       console.log('[SignIn] User authenticated, redirecting to home');
-      router.replace('/(tabs)/(home)' as never);
+      router.replace('/(tabs)/(scan)' as never);
     }
   }, [user]);
 

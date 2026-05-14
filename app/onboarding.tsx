@@ -592,10 +592,10 @@ function Step4({
     try {
       await apiPut('/api/profile', { onboarding_completed: true });
       console.log('[Onboarding Step 4] Onboarding marked complete, navigating to home');
-      router.replace('/(tabs)/(home)' as never);
+      router.replace('/(tabs)/(scan)' as never);
     } catch (err) {
       console.error('[Onboarding Step 4] Failed to mark onboarding complete:', err);
-      router.replace('/(tabs)/(home)' as never);
+      router.replace('/(tabs)/(scan)' as never);
     } finally {
       setLoading(false);
     }

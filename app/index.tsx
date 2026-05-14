@@ -35,7 +35,7 @@ export default function WelcomeScreen() {
             console.log('[Welcome] Profile fetched:', profile);
             if (profile?.onboarding_completed === true) {
               console.log('[Welcome] Onboarding complete, redirecting to home');
-              router.replace('/(tabs)/(home)' as never);
+              router.replace('/(tabs)/(scan)' as never);
             } else {
               console.log('[Welcome] Onboarding not complete, redirecting to onboarding');
               router.replace('/onboarding' as never);
