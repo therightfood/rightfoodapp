@@ -38,7 +38,7 @@ export default function SignUpScreen() {
       console.log('[SignUp] User authenticated, redirecting to onboarding');
       router.replace('/onboarding');
     }
-  }, [user]);
+  }, [user, router]);
 
   const validateEmail = (value: string) => {
     if (!value.includes('@')) {

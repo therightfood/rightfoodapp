@@ -58,7 +58,7 @@ function ProgressBar({ step }: { step: number }) {
       duration: 300,
       useNativeDriver: false,
     }).start();
-  }, [step]);
+  }, [step, fillAnim]);
 
   const stepLabel = `Step ${step} of 4`;
 

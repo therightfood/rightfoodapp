@@ -31,7 +31,7 @@ export function AnimatedPressable({
       speed: 50,
       bounciness: 4,
     }).start();
-  }, []);
+  }, [scale, scaleValue]);
 
   const animateOut = useCallback(() => {
     Animated.spring(scale, {
@@ -40,7 +40,7 @@ export function AnimatedPressable({
       speed: 50,
       bounciness: 4,
     }).start();
-  }, []);
+  }, [scale]);
 
   return (
     <Animated.View style={[{ transform: [{ scale }] }, disabled && { opacity: 0.5 }]}>

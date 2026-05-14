@@ -37,7 +37,7 @@ export default function SignInScreen() {
       console.log('[SignIn] User authenticated, redirecting to home');
       router.replace('/(tabs)/(scan)' as never);
     }
-  }, [user]);
+  }, [user, router]);
 
   const validateEmail = (value: string) => {
     if (!value.includes('@')) {

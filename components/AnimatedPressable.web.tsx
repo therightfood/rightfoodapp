@@ -1,5 +1,5 @@
-import React, { useRef, useCallback } from 'react';
-import { Animated, Pressable, ViewStyle, StyleProp, PressableProps } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { Pressable, ViewStyle, StyleProp, PressableProps, View } from 'react-native';
 
 interface AnimatedPressableProps {
   onPress?: () => void;
@@ -30,31 +30,24 @@ export function AnimatedPressable({
   hitSlop,
   delayLongPress,
 }: AnimatedPressableProps) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const [pressed, setPressed] = useState(false);
 
-  const animateIn = useCallback(() => {
-    Animated.spring(scale, {
-      toValue: scaleValue,
-      useNativeDriver: false,
-      speed: 50,
-      bounciness: 4,
-    }).start();
-  }, []);
+  const handlePressIn = useCallback(() => setPressed(true), []);
+  const handlePressOut = useCallback(() => setPressed(false), []);
 
-  const animateOut = useCallback(() => {
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: false,
-      speed: 50,
-      bounciness: 4,
-    }).start();
-  }, []);
+  // Use a plain View with CSS transition via style prop — no Animated API, no __s prop leak
+  const wrapperStyle: ViewStyle = {
+    opacity: disabled ? 0.5 : 1,
+    // @ts-expect-error — 'transition' and 'transform' as CSS string are valid on web
+    transition: 'transform 0.1s ease-out',
+    transform: [{ scale: pressed && !disabled ? scaleValue : 1 }],
+  };
 
   return (
-    <Animated.View style={[{ transform: [{ scale }] }, disabled ? { opacity: 0.5 } : undefined]}>
+    <View style={wrapperStyle}>
       <Pressable
-        onPressIn={animateIn}
-        onPressOut={animateOut}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         onPress={disabled ? undefined : onPress}
         onLongPress={disabled ? undefined : onLongPress}
         disabled={disabled}
@@ -68,6 +61,6 @@ export function AnimatedPressable({
       >
         {children}
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }

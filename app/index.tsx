@@ -63,7 +63,7 @@ export default function WelcomeScreen() {
         ]).start();
       }
     }
-  }, [loading, user]);
+  }, [loading, user, opacity, router, translateY]);
 
   if (loading) {
     return (
