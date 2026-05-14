@@ -719,4 +719,192 @@ export function registerScanRoutes(app: App) {
       updated_at: updatedAnalysis.updatedAt.toISOString(),
     };
   });
+
+  // GET /api/journey - Get meal journey analytics
+  app.fastify.get('/api/journey', {
+    schema: {
+      description: 'Get meal journey analytics and summary stats',
+      tags: ['journey'],
+      response: {
+        200: {
+          description: 'Meal journey data',
+          type: 'object',
+          properties: {
+            summary: {
+              type: 'object',
+              properties: {
+                today_calories: { type: 'integer' },
+                today_protein_g: { type: 'integer' },
+                today_meal_count: { type: 'integer' },
+                week_avg_daily_calories: { type: 'integer' },
+                week_avg_daily_protein_g: { type: 'integer' },
+                week_meal_count: { type: 'integer' },
+              },
+            },
+            meals: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  image_url: { type: 'string' },
+                  dish_name: { type: ['string', 'null'] },
+                  created_at: { type: 'string', format: 'date-time' },
+                  effective_portion_pct: { type: 'integer' },
+                  effective_calories: { type: 'integer' },
+                  effective_protein_g: { type: 'integer' },
+                  portion_suggestion_pct: { type: ['string', 'null'] },
+                  actual_portion_pct: { type: ['string', 'null'] },
+                  total_calories: { type: ['string', 'null'] },
+                  protein_g: { type: ['string', 'null'] },
+                  carbs_g: { type: ['string', 'null'] },
+                  fat_g: { type: ['string', 'null'] },
+                  fiber_g: { type: ['string', 'null'] },
+                  confidence: { type: ['string', 'null'] },
+                  foods_identified: { type: 'array', items: { type: 'string' } },
+                  medication: { type: ['string', 'null'] },
+                  dose_mg: { type: ['string', 'null'] },
+                  time_of_day: { type: ['string', 'null'] },
+                  status: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        401: {
+          description: 'Unauthorized',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply): Promise<any | void> => {
+    const session = await requireAuth(request, reply);
+    if (!session) return;
+
+    const userId = session.user.id;
+    app.logger.info({ userId }, 'Fetching meal journey');
+
+    // Fetch all completed meals for this user, limit 200
+    const meals = await app.db.query.mealAnalyses.findMany({
+      where: (table, { and, eq }) =>
+        and(eq(table.userId, userId), eq(table.status, 'completed')),
+      orderBy: (table, { desc }) => desc(table.createdAt),
+      limit: 200,
+    });
+
+    app.logger.info({ userId, mealCount: meals.length }, 'Fetched meals for journey');
+
+    // Get today's date in UTC
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    // Get week start (7 days ago)
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Helper function to calculate effective portion
+    const getEffectivePortion = (meal: any): number => {
+      if (meal.actualPortionPct !== null) {
+        return Number(meal.actualPortionPct);
+      }
+      if (meal.portionSuggestionPct !== null) {
+        return Number(meal.portionSuggestionPct);
+      }
+      return 100;
+    };
+
+    // Helper function to calculate effective calories
+    const calculateEffectiveCalories = (meal: any, effectivePortion: number): number => {
+      const totalCals = Number(meal.totalCalories || 0);
+      return Math.round(totalCals * effectivePortion / 100);
+    };
+
+    // Helper function to calculate effective protein
+    const calculateEffectiveProtein = (meal: any, effectivePortion: number): number => {
+      const protein = Number(meal.proteinG || 0);
+      return Math.round(protein * effectivePortion / 100);
+    };
+
+    // Process meals and calculate stats
+    let todayCalories = 0;
+    let todayProtein = 0;
+    let todayMealCount = 0;
+    let weekCalories = 0;
+    let weekProtein = 0;
+    let weekMealCount = 0;
+
+    const processedMeals = meals.map(meal => {
+      const effectivePortion = getEffectivePortion(meal);
+      const effectiveCalories = calculateEffectiveCalories(meal, effectivePortion);
+      const effectiveProtein = calculateEffectiveProtein(meal, effectivePortion);
+
+      // Check if meal is from today
+      if (meal.createdAt >= todayStart && meal.createdAt < todayEnd) {
+        todayCalories += effectiveCalories;
+        todayProtein += effectiveProtein;
+        todayMealCount++;
+      }
+
+      // Check if meal is from this week
+      if (meal.createdAt >= weekStart) {
+        weekCalories += effectiveCalories;
+        weekProtein += effectiveProtein;
+        weekMealCount++;
+      }
+
+      return {
+        id: meal.id,
+        image_url: meal.imageUrl,
+        dish_name: meal.dishName || null,
+        created_at: meal.createdAt.toISOString(),
+        effective_portion_pct: Math.round(effectivePortion),
+        effective_calories: effectiveCalories,
+        effective_protein_g: effectiveProtein,
+        portion_suggestion_pct: meal.portionSuggestionPct ? meal.portionSuggestionPct.toString() : null,
+        actual_portion_pct: meal.actualPortionPct ? meal.actualPortionPct.toString() : null,
+        total_calories: meal.totalCalories ? meal.totalCalories.toString() : null,
+        protein_g: meal.proteinG ? meal.proteinG.toString() : null,
+        carbs_g: meal.carbsG ? meal.carbsG.toString() : null,
+        fat_g: meal.fatG ? meal.fatG.toString() : null,
+        fiber_g: meal.fiberG ? meal.fiberG.toString() : null,
+        confidence: meal.confidence ? meal.confidence.toString() : null,
+        foods_identified: Array.isArray(meal.foodsIdentified)
+          ? meal.foodsIdentified
+          : meal.foodsIdentified || [],
+        medication: meal.medication || null,
+        dose_mg: meal.doseMg ? meal.doseMg.toString() : null,
+        time_of_day: meal.timeOfDay || null,
+        status: meal.status,
+      };
+    });
+
+    // Calculate week averages
+    const weekAvgDailyCalories = weekMealCount > 0 ? Math.round(weekCalories / 7) : 0;
+    const weekAvgDailyProtein = weekMealCount > 0 ? Math.round(weekProtein / 7) : 0;
+
+    app.logger.info(
+      {
+        userId,
+        todayCalories,
+        todayMealCount,
+        weekMealCount,
+      },
+      'Journey stats calculated'
+    );
+
+    return {
+      summary: {
+        today_calories: todayCalories,
+        today_protein_g: todayProtein,
+        today_meal_count: todayMealCount,
+        week_avg_daily_calories: weekAvgDailyCalories,
+        week_avg_daily_protein_g: weekAvgDailyProtein,
+        week_meal_count: weekMealCount,
+      },
+      meals: processedMeals,
+    };
+  });
 }

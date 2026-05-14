@@ -261,4 +261,23 @@ describe("API Integration Tests", () => {
       await expectStatus(res, 401);
     });
   });
+
+  describe("Journey endpoints", () => {
+    test("GET /api/journey - should return meal journey analytics when authenticated", async () => {
+      const res = await authenticatedApi("/api/journey", authToken);
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("summary");
+      expect(data).toHaveProperty("meals");
+      expect(Array.isArray(data.meals)).toBe(true);
+      // Verify summary has expected fields
+      expect(data.summary).toHaveProperty("today_calories");
+      expect(data.summary).toHaveProperty("today_meal_count");
+    });
+
+    test("GET /api/journey - should return 401 when not authenticated", async () => {
+      const res = await api("/api/journey");
+      await expectStatus(res, 401);
+    });
+  });
 });
