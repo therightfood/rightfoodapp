@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { api, authenticatedApi, signUpTestUser, expectStatus, connectWebSocket, connectAuthenticatedWebSocket, waitForMessage } from "./helpers";
+import { api, authenticatedApi, signUpTestUser, expectStatus, createTestFile } from "./helpers";
 
 describe("API Integration Tests", () => {
   // Shared state for chaining tests (e.g., created resource IDs, auth tokens)
@@ -71,6 +71,91 @@ describe("API Integration Tests", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ disclaimer_acknowledged: true }),
       });
+      await expectStatus(res, 401);
+    });
+  });
+
+  describe("Scan endpoints", () => {
+    let uploadedImageUrl: string;
+
+    test("POST /api/scan/upload - should upload image successfully", async () => {
+      const form = new FormData();
+      form.append("file", createTestFile("test.jpg", "fake image data", "image/jpeg"));
+
+      const res = await authenticatedApi("/api/scan/upload", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("image_url");
+      uploadedImageUrl = data.image_url;
+    });
+
+    test("POST /api/scan/upload - should return 401 when not authenticated", async () => {
+      const form = new FormData();
+      form.append("file", createTestFile("test.jpg", "fake image data", "image/jpeg"));
+
+      const res = await api("/api/scan/upload", {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 401);
+    });
+
+    test("POST /api/scan/upload - should return 400 when file is missing", async () => {
+      const form = new FormData();
+
+      const res = await authenticatedApi("/api/scan/upload", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("POST /api/scan/analyze - should analyze image (may return 200 or 422 based on confidence)", async () => {
+      const res = await authenticatedApi("/api/scan/analyze", authToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_url: uploadedImageUrl,
+        }),
+      });
+      await expectStatus(res, 200, 422);
+      const data = await res.json();
+      expect(data).toHaveProperty("id");
+    });
+
+    test("POST /api/scan/analyze - should return 401 when not authenticated", async () => {
+      const res = await api("/api/scan/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_url: "https://example.com/image.jpg",
+        }),
+      });
+      await expectStatus(res, 401);
+    });
+
+    test("POST /api/scan/analyze - should return 400 when image_url is missing", async () => {
+      const res = await authenticatedApi("/api/scan/analyze", authToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("GET /api/scan/analyses - should return list of analyses", async () => {
+      const res = await authenticatedApi("/api/scan/analyses", authToken);
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("analyses");
+      expect(Array.isArray(data.analyses)).toBe(true);
+    });
+
+    test("GET /api/scan/analyses - should return 401 when not authenticated", async () => {
+      const res = await api("/api/scan/analyses");
       await expectStatus(res, 401);
     });
   });

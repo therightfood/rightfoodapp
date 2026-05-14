@@ -2,6 +2,7 @@ import { createApplication, resend } from "@specific-dev/framework";
 import * as appSchema from './db/schema/schema.js';
 import * as authSchema from './db/schema/auth-schema.js';
 import { registerProfileRoutes } from './routes/profiles.js';
+import { registerScanRoutes } from './routes/scan.js';
 
 // Combine app and auth schemas
 const schema = { ...appSchema, ...authSchema };
@@ -26,9 +27,13 @@ app.withAuth({
   },
 });
 
+// Setup storage for file uploads
+app.withStorage();
+
 // Register routes - add your route modules here
 // IMPORTANT: Always use registration functions to avoid circular dependency issues
 registerProfileRoutes(app);
+registerScanRoutes(app);
 
 await app.run();
 app.logger.info('Application running');
