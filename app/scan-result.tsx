@@ -11,6 +11,7 @@ import {
   Animated,
   ActivityIndicator,
   Platform,
+  Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -19,6 +20,8 @@ import Slider from '@react-native-community/slider';
 import { COLORS } from '@/constants/Colors';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { authClient } from '@/lib/auth';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 
 const BACKEND_URL = 'https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev';
 
@@ -29,6 +32,112 @@ function resolveImageSource(
   if (typeof source === 'string') return { uri: source };
   return source as ImageSourcePropType;
 }
+
+// ─── ShareCard ────────────────────────────────────────────────────────────────
+
+interface ShareCardProps {
+  photoUri: string;
+  dishName: string;
+  portionPct: number;
+  isConfirmed: boolean;
+}
+
+function ShareCard({ photoUri, dishName, portionPct, isConfirmed }: ShareCardProps) {
+  const portionText = isConfirmed
+    ? `I ate ${portionPct}% of this`
+    : `Right Food suggested ${portionPct}%`;
+
+  return (
+    <View style={shareCardStyles.container}>
+      <Image
+        source={{ uri: photoUri }}
+        style={shareCardStyles.photo}
+        resizeMode="cover"
+      />
+      <View style={shareCardStyles.content}>
+        <Text style={shareCardStyles.dishName} numberOfLines={2}>
+          {dishName}
+        </Text>
+        <Text style={shareCardStyles.portionText}>
+          {portionText}
+        </Text>
+        <View style={shareCardStyles.divider} />
+        <View style={shareCardStyles.footer}>
+          <View style={shareCardStyles.logoRow}>
+            <View style={shareCardStyles.logoLeaf} />
+            <Text style={shareCardStyles.logoText}>Right Food</Text>
+          </View>
+          <Text style={shareCardStyles.urlText}>right.food</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const shareCardStyles = StyleSheet.create({
+  container: {
+    width: 320,
+    backgroundColor: '#FAFAF8',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E8E6E0',
+  },
+  photo: {
+    width: 320,
+    height: 200,
+  },
+  content: {
+    padding: 20,
+  },
+  dishName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    letterSpacing: -0.2,
+    marginBottom: 8,
+  },
+  portionText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#4A7C59',
+    letterSpacing: -0.5,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E8E6E0',
+    marginBottom: 14,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  logoLeaf: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#4A7C59',
+  },
+  logoText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4A7C59',
+    letterSpacing: -0.1,
+  },
+  urlText: {
+    fontSize: 12,
+    color: '#7A6A5A',
+  },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ScanResultScreen() {
   const params = useLocalSearchParams<{
@@ -77,6 +186,10 @@ export default function ScanResultScreen() {
   const initialPortion = Math.round(portionPctNum);
   const [sliderValue, setSliderValue] = useState(initialPortion);
   const [confirmState, setConfirmState] = useState<'idle' | 'loading' | 'confirmed'>('idle');
+
+  // ─── Share state ──────────────────────────────────────────────────────────────
+  const shareCardRef = useRef<ViewShot>(null);
+  const [isSharing, setIsSharing] = useState(false);
 
   const barWidth = useRef(new Animated.Value(initialPortion)).current;
   const confirmScale = useRef(new Animated.Value(1)).current;
@@ -158,9 +271,60 @@ export default function ScanResultScreen() {
     }
   };
 
-  // ─── Action row handlers ──────────────────────────────────────────────────────
-  const handleShare = () => {
-    console.log('[ScanResult] Share result pressed');
+  // ─── Share handler ────────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    if (isSharing) return;
+    console.log('[ScanResult] Share button pressed', { analysisId: params.analysisId, sliderValue });
+    setIsSharing(true);
+    try {
+      const uri = await shareCardRef.current?.capture?.();
+      if (!uri) throw new Error('Could not capture share card');
+      console.log('[ScanResult] Share card captured, uri:', uri);
+
+      const shareText = 'Check out Right Food — a free meal companion for GLP-1 users. right.food';
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        console.log('[ScanResult] Using expo-sharing');
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: shareText,
+        });
+      } else {
+        console.log('[ScanResult] Falling back to RN Share');
+        await Share.share({
+          message: shareText,
+          url: uri,
+        });
+      }
+
+      if (params.analysisId) {
+        console.log('[ScanResult] PATCH /api/scan/analyses/:id/share — marking as shared');
+        const session = await authClient.getSession();
+        const token = session?.data?.session?.token;
+        if (token) {
+          const res = await fetch(
+            `${BACKEND_URL}/api/scan/analyses/${params.analysisId}/share`,
+            {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          if (!res.ok) {
+            const errText = await res.text();
+            console.error('[ScanResult] Share PATCH failed:', res.status, errText);
+          } else {
+            console.log('[ScanResult] Share PATCH succeeded');
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err?.message !== 'User did not share') {
+        console.error('[Share] Error:', err);
+      }
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const handleSave = () => {
@@ -206,6 +370,8 @@ export default function ScanResultScreen() {
   ) : (
     <Text style={styles.confirmButtonText}>Confirm</Text>
   );
+
+  const shareButtonLabel = isSharing ? 'Sharing...' : 'Share';
 
   // ─── Error state ──────────────────────────────────────────────────────────────
   const hasError = !!params.error;
@@ -296,6 +462,20 @@ export default function ScanResultScreen() {
   // ─── Success state ────────────────────────────────────────────────────────────
   return (
     <View style={styles.flex}>
+      {/* Off-screen share card for capture */}
+      <ViewShot
+        ref={shareCardRef}
+        options={{ format: 'png', quality: 1.0 }}
+        style={{ position: 'absolute', top: -1000, left: 0 }}
+      >
+        <ShareCard
+          photoUri={params.photoUri || ''}
+          dishName={params.dishName || 'My meal'}
+          portionPct={sliderValue}
+          isConfirmed={confirmState === 'confirmed'}
+        />
+      </ViewShot>
+
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.headerRow}>
           <AnimatedPressable style={styles.backButton} onPress={handleBack}>
@@ -428,9 +608,16 @@ export default function ScanResultScreen() {
 
         {/* ── Action row ── */}
         <View style={styles.actionRow}>
-          <AnimatedPressable style={styles.actionButton} onPress={handleShare}>
-            <Share2 size={16} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.actionButtonText}>Share</Text>
+          <AnimatedPressable
+            style={[styles.actionButton, isSharing && { opacity: 0.5 }]}
+            onPress={handleShare}
+            disabled={isSharing}
+          >
+            {isSharing
+              ? <ActivityIndicator size="small" color={COLORS.textSecondary} />
+              : <Share2 size={16} color={COLORS.textSecondary} strokeWidth={2} />
+            }
+            <Text style={styles.actionButtonText}>{shareButtonLabel}</Text>
           </AnimatedPressable>
           <AnimatedPressable style={styles.actionButton} onPress={handleSave}>
             <Bookmark size={16} color={COLORS.textSecondary} strokeWidth={2} />

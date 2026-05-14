@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { ChevronRight, BookOpen, AlertCircle, Camera } from 'lucide-react-native';
+import { ChevronRight, BookOpen, AlertCircle, Camera, Share2 } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { apiGet } from '@/utils/api';
 import AnimatedPressable from '@/components/AnimatedPressable';
@@ -29,6 +29,7 @@ interface Meal {
   effective_protein_g: number;
   portion_suggestion_pct: number;
   actual_portion_pct: number | null;
+  shared_at: string | null;
   total_calories: number;
   protein_g: number;
   carbs_g: number;
@@ -593,6 +594,12 @@ function MealRow({ meal, isFirst, isLast, onPress }: MealRowProps) {
           <Text style={styles.mealMeta}>Ate {portionPct}%</Text>
           <Text style={styles.mealSep}>·</Text>
           <Text style={styles.mealMeta}>{calories} kcal</Text>
+          {meal.shared_at && (
+            <View style={styles.sharedBadge}>
+              <Share2 size={9} color={COLORS.primary} strokeWidth={2.5} />
+              <Text style={styles.sharedBadgeText}>Shared</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -862,6 +869,20 @@ const styles = StyleSheet.create({
   mealSep: {
     fontSize: 13,
     color: COLORS.textTertiary,
+  },
+  sharedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: COLORS.primaryMuted,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sharedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
 
   // Tab switcher
