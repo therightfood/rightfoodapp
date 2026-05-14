@@ -4,6 +4,7 @@ import * as authSchema from './db/schema/auth-schema.js';
 import { registerProfileRoutes } from './routes/profiles.js';
 import { registerScanRoutes } from './routes/scan.js';
 import { registerRecipeRoutes } from './routes/recipes.js';
+import { registerMenuRoutes } from './routes/menus.js';
 
 // Combine app and auth schemas
 const schema = { ...appSchema, ...authSchema };
@@ -36,6 +37,7 @@ app.withStorage();
 registerProfileRoutes(app);
 registerScanRoutes(app);
 registerRecipeRoutes(app);
+registerMenuRoutes(app);
 
 await app.run();
 app.logger.info('Application running');

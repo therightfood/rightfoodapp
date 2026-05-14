@@ -390,4 +390,64 @@ describe("API Integration Tests", () => {
       await expectStatus(res, 400);
     });
   });
+
+  describe("Menu endpoints", () => {
+    test("POST /api/menus/analyze - should analyze menu image successfully (200 or 422)", async () => {
+      const form = new FormData();
+      form.append("file", createTestFile("menu.jpg", "fake menu image data", "image/jpeg"));
+
+      const res = await authenticatedApi("/api/menus/analyze", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 200, 422);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("session_id");
+        expect(data).toHaveProperty("image_url");
+        expect(data).toHaveProperty("extracted_items");
+        expect(Array.isArray(data.extracted_items)).toBe(true);
+        expect(data).toHaveProperty("recommendations");
+        expect(Array.isArray(data.recommendations)).toBe(true);
+      }
+    });
+
+    test("POST /api/menus/analyze - should return 401 when not authenticated", async () => {
+      const form = new FormData();
+      form.append("file", createTestFile("menu.jpg", "fake menu image data", "image/jpeg"));
+
+      const res = await api("/api/menus/analyze", {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 401);
+    });
+
+    test("POST /api/menus/analyze - should return 400 when file is missing", async () => {
+      const form = new FormData();
+
+      const res = await authenticatedApi("/api/menus/analyze", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("POST /api/menus/analyze - should handle large files (200, 413, or 422)", async () => {
+      const form = new FormData();
+      const largeContent = "x".repeat(5 * 1024 * 1024);
+      form.append("file", createTestFile("large_menu.jpg", largeContent, "image/jpeg"));
+
+      const res = await authenticatedApi("/api/menus/analyze", authToken, {
+        method: "POST",
+        body: form,
+      });
+      await expectStatus(res, 200, 413, 422);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("session_id");
+        expect(data).toHaveProperty("extracted_items");
+      }
+    });
+  });
 });

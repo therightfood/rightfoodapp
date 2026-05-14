@@ -48,3 +48,14 @@ export const recipeSessions = pgTable('recipe_sessions', {
   recipesReturned: jsonb('recipes_returned').default([]),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
+
+export const menuSessions = pgTable('menu_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  imageUrl: text('image_url').notNull(),
+  extractedItems: jsonb('extracted_items').default([]),
+  recommendations: jsonb('recommendations').default([]),
+  medication: text('medication'),
+  doseMg: numeric('dose_mg'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

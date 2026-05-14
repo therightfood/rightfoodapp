@@ -36,6 +36,13 @@
       "when": 1778756451078,
       "tag": "20260514110051_youthful_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778757455478,
+      "tag": "20260514111735_open_spot",
+      "breakpoints": true
     }
   ]
 }
