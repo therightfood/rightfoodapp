@@ -51,7 +51,7 @@ async function saveOneSignalId(onesignalId: string) {
     const token = (session?.data?.session as any)?.token;
     if (!token) return;
     const res = await fetch(
-      'https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev/api/profile/onesignal-id',
+      'https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev/api/profile/onesignal-id',
       {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -175,7 +175,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       const token = (session?.data?.session as any)?.token;
       if (!token) return;
       const res = await fetch(
-        'https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev/api/profile/reminders',
+        'https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev/api/profile/reminders',
         {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

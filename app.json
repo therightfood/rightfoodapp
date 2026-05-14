@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.placeholder.app",
+      "bundleIdentifier": "com.placeholder.rightfood",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Right Food needs camera access to photograph your meals.",
@@ -68,7 +68,7 @@
     },
     "extra": {
       "router": {},
-      "backendUrl": "https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev",
+      "backendUrl": "https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev",
       "oneSignalAppId": "af4b7d19-9b67-46de-a26d-76ec3c380840"
     }
   }

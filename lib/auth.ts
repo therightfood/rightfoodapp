@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-const API_URL = "https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev";
+const API_URL = "https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev";
 
 export const BEARER_TOKEN_KEY = "nutriport_bearer_token";
 
