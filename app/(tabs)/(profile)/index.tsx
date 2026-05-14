@@ -120,6 +120,9 @@ function SkeletonBox({ width, height = 14, style }: { width: number | string; he
     return () => anim.stop();
   }, [opacity]);
 
+  if (Platform.OS === 'web') {
+    return <View style={[{ width, height, borderRadius: height / 2, backgroundColor: COLORS.surfaceSecondary, opacity: 0.5 }, style]} />;
+  }
   return (
     <Animated.View
       style={[
@@ -222,9 +225,7 @@ export default function ProfileScreen() {
   const handleToggleReminder = useCallback((value: boolean) => {
     console.log('[Profile] Reminder toggle pressed:', value);
     if (Platform.OS !== 'web') {
-      if (Platform.OS !== 'web') {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }
     }
     setReminderEnabled(value);
     saveReminders(value, reminderTimes);
@@ -243,7 +244,9 @@ export default function ProfileScreen() {
 
   const handleRemoveReminderSlot = useCallback((index: number) => {
     console.log('[Profile] Remove reminder slot pressed, index:', index);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (Platform.OS !== 'web') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
     const newTimes = reminderTimes.filter((_, i) => i !== index);
     setReminderTimes(newTimes);
     saveReminders(reminderEnabled, newTimes);
@@ -710,30 +713,57 @@ export default function ProfileScreen() {
             </View>
 
             {modalSelectedMed && (
-              <Animated.View style={[styles.dosePicker, { opacity: doseOpacity }]}>
-                <Text style={styles.dosePickerLabel}>Select your dose</Text>
-                <View style={styles.chipRow}>
-                  {currentModalDoses.map((dose) => {
-                    const isSelected = modalSelectedDose === dose;
-                    return (
-                      <AnimatedPressable
-                        key={dose}
-                        onPress={() => handleModalSelectDose(dose)}
-                        style={[styles.doseChip, isSelected && styles.doseChipSelected]}
-                      >
-                        <Text
-                          style={[
-                            styles.doseChipText,
-                            isSelected && styles.doseChipTextSelected,
-                          ]}
+              Platform.OS === 'web' ? (
+                <View style={[styles.dosePicker, { opacity: 1 }]}>
+                  <Text style={styles.dosePickerLabel}>Select your dose</Text>
+                  <View style={styles.chipRow}>
+                    {currentModalDoses.map((dose) => {
+                      const isSelected = modalSelectedDose === dose;
+                      return (
+                        <AnimatedPressable
+                          key={dose}
+                          onPress={() => handleModalSelectDose(dose)}
+                          style={[styles.doseChip, isSelected && styles.doseChipSelected]}
                         >
-                          {dose}
-                        </Text>
-                      </AnimatedPressable>
-                    );
-                  })}
+                          <Text
+                            style={[
+                              styles.doseChipText,
+                              isSelected && styles.doseChipTextSelected,
+                            ]}
+                          >
+                            {dose}
+                          </Text>
+                        </AnimatedPressable>
+                      );
+                    })}
+                  </View>
                 </View>
-              </Animated.View>
+              ) : (
+                <Animated.View style={[styles.dosePicker, { opacity: doseOpacity }]}>
+                  <Text style={styles.dosePickerLabel}>Select your dose</Text>
+                  <View style={styles.chipRow}>
+                    {currentModalDoses.map((dose) => {
+                      const isSelected = modalSelectedDose === dose;
+                      return (
+                        <AnimatedPressable
+                          key={dose}
+                          onPress={() => handleModalSelectDose(dose)}
+                          style={[styles.doseChip, isSelected && styles.doseChipSelected]}
+                        >
+                          <Text
+                            style={[
+                              styles.doseChipText,
+                              isSelected && styles.doseChipTextSelected,
+                            ]}
+                          >
+                            {dose}
+                          </Text>
+                        </AnimatedPressable>
+                      );
+                    })}
+                  </View>
+                </Animated.View>
+              )
             )}
 
             <AnimatedPressable
