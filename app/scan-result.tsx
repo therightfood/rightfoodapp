@@ -329,12 +329,21 @@ export default function ScanResultScreen() {
         {/* Satiety bar */}
         <View style={styles.satietyBarContainer}>
           <View style={styles.satietyBarTrack}>
-            <Animated.View
-              style={[
-                styles.satietyBarFill,
-                { width: barInterpolated },
-              ]}
-            />
+            {Platform.OS === 'web' ? (
+              <View
+                style={[
+                  styles.satietyBarFill,
+                  { width: `${sliderValue}%` as any },
+                ]}
+              />
+            ) : (
+              <Animated.View
+                style={[
+                  styles.satietyBarFill,
+                  { width: barInterpolated },
+                ]}
+              />
+            )}
           </View>
           <View style={styles.satietyBarLabels}>
             <Text style={styles.satietyBarLabelLeft}>Your suggested portion</Text>
@@ -390,17 +399,31 @@ export default function ScanResultScreen() {
             thumbTintColor={COLORS.primary}
           />
 
-          <Animated.View style={{ transform: [{ scale: confirmScale }] }}>
-            <AnimatedPressable
-              style={[
-                styles.confirmButton,
-                confirmState !== 'idle' && styles.confirmButtonDisabled,
-              ]}
-              onPress={handleConfirm}
-            >
-              {confirmButtonContent}
-            </AnimatedPressable>
-          </Animated.View>
+          {Platform.OS === 'web' ? (
+            <View>
+              <AnimatedPressable
+                style={[
+                  styles.confirmButton,
+                  confirmState !== 'idle' && styles.confirmButtonDisabled,
+                ]}
+                onPress={handleConfirm}
+              >
+                {confirmButtonContent}
+              </AnimatedPressable>
+            </View>
+          ) : (
+            <Animated.View style={{ transform: [{ scale: confirmScale }] }}>
+              <AnimatedPressable
+                style={[
+                  styles.confirmButton,
+                  confirmState !== 'idle' && styles.confirmButtonDisabled,
+                ]}
+                onPress={handleConfirm}
+              >
+                {confirmButtonContent}
+              </AnimatedPressable>
+            </Animated.View>
+          )}
         </View>
 
         {/* ── Action row ── */}
