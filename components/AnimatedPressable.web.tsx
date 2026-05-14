@@ -36,12 +36,11 @@ export function AnimatedPressable({
   const handlePressOut = useCallback(() => setPressed(false), []);
 
   // Use a plain View with CSS transition via style prop — no Animated API, no __s prop leak
-  const wrapperStyle: ViewStyle = {
+  const wrapperStyle = {
     opacity: disabled ? 0.5 : 1,
-    // @ts-expect-error — 'transition' and 'transform' as CSS string are valid on web
     transition: 'transform 0.1s ease-out',
-    transform: [{ scale: pressed && !disabled ? scaleValue : 1 }],
-  };
+    transform: `scale(${pressed && !disabled ? scaleValue : 1})`,
+  } as any;
 
   return (
     <View style={wrapperStyle}>
