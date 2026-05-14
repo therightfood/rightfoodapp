@@ -18,6 +18,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Right Food needs camera access to photograph your meals.",
         "NSPhotoLibraryUsageDescription": "Right Food needs photo library access to select meal photos.",
+        "NSUserNotificationUsageDescription": "Right Food sends meal reminder notifications to help you track your portions.",
         "UIBackgroundModes": [
           "remote-notification"
         ]
@@ -37,7 +38,8 @@
       "package": "com.placeholder.app",
       "permissions": [
         "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {
