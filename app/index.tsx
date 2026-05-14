@@ -12,6 +12,11 @@ import { Leaf } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
+import { apiGet } from '@/utils/api';
+
+interface UserProfile {
+  onboarding_completed?: boolean;
+}
 
 export default function WelcomeScreen() {
   const { user, loading } = useAuth();
@@ -23,8 +28,22 @@ export default function WelcomeScreen() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        console.log('[Welcome] User already authenticated, redirecting to home');
-        router.replace('/(tabs)/(home)' as never);
+        console.log('[Welcome] User authenticated, fetching profile to check onboarding status');
+        apiGet<UserProfile>('/api/profile')
+          .then((profile) => {
+            console.log('[Welcome] Profile fetched:', profile);
+            if (profile?.onboarding_completed === true) {
+              console.log('[Welcome] Onboarding complete, redirecting to home');
+              router.replace('/(tabs)/(home)' as never);
+            } else {
+              console.log('[Welcome] Onboarding not complete, redirecting to onboarding');
+              router.replace('/onboarding' as never);
+            }
+          })
+          .catch((err) => {
+            console.error('[Welcome] Failed to fetch profile, defaulting to onboarding:', err);
+            router.replace('/onboarding' as never);
+          });
       } else {
         console.log('[Welcome] No user found, showing welcome screen');
         Animated.parallel([
@@ -54,7 +73,11 @@ export default function WelcomeScreen() {
   }
 
   if (user) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
   }
 
   const handleGetStarted = () => {
