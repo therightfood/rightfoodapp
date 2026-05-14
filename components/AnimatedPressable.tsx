@@ -1,7 +1,7 @@
 import { Pressable, Animated, PressableProps, ViewStyle, StyleProp, Platform } from 'react-native';
 import { useRef, useCallback } from 'react';
 
-const useNativeDriver = Platform.OS !== 'web';
+const useNativeDriverValue = Platform.OS !== 'web';
 
 interface AnimatedPressableProps extends PressableProps {
   scaleValue?: number;
@@ -14,14 +14,20 @@ export function AnimatedPressable({
   children,
   disabled,
   scaleValue = 0.97,
-  ...props
+  accessibilityLabel,
+  accessibilityRole,
+  accessibilityHint,
+  testID,
+  hitSlop,
+  onLongPress,
+  delayLongPress,
 }: AnimatedPressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const animateIn = useCallback(() => {
     Animated.spring(scale, {
       toValue: scaleValue,
-      useNativeDriver,
+      useNativeDriver: useNativeDriverValue,
       speed: 50,
       bounciness: 4,
     }).start();
@@ -30,16 +36,11 @@ export function AnimatedPressable({
   const animateOut = useCallback(() => {
     Animated.spring(scale, {
       toValue: 1,
-      useNativeDriver,
+      useNativeDriver: useNativeDriverValue,
       speed: 50,
       bounciness: 4,
     }).start();
   }, []);
-
-  // Filter out internal props (e.g. __s, __sourceLocation from Reanimated/dev tools) that must not reach DOM elements on web
-  const safeProps = Platform.OS === 'web'
-    ? Object.fromEntries(Object.entries(props).filter(([key]) => !key.startsWith('__') && !key.startsWith('data-')))
-    : props;
 
   return (
     <Animated.View style={[{ transform: [{ scale }] }, disabled && { opacity: 0.5 }]}>
@@ -47,9 +48,15 @@ export function AnimatedPressable({
         onPressIn={animateIn}
         onPressOut={animateOut}
         onPress={onPress}
+        onLongPress={onLongPress}
         disabled={disabled}
         style={style}
-        {...safeProps}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole={accessibilityRole}
+        accessibilityHint={accessibilityHint}
+        testID={testID}
+        hitSlop={hitSlop}
+        delayLongPress={delayLongPress}
       >
         {children}
       </Pressable>
