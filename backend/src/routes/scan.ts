@@ -462,4 +462,116 @@ export function registerScanRoutes(app: App) {
       analyses: analyses.map(formatResponse),
     };
   });
+
+  // PATCH /api/scan/analyses/:id - Update actual portion eaten
+  app.fastify.patch('/api/scan/analyses/:id', {
+    schema: {
+      description: 'Update the actual portion eaten for a meal analysis',
+      tags: ['scan'],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'string', description: 'Analysis ID' },
+        },
+      },
+      body: {
+        type: 'object',
+        required: ['actual_portion_pct'],
+        properties: {
+          actual_portion_pct: { type: 'number', minimum: 0, maximum: 100 },
+        },
+      },
+      response: {
+        200: {
+          description: 'Analysis updated successfully',
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            actual_portion_pct: { type: 'string' },
+            updated_at: { type: 'string', format: 'date-time' },
+          },
+        },
+        400: {
+          description: 'Invalid request - actual_portion_pct must be a number between 0 and 100',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+        401: {
+          description: 'Unauthorized',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+        404: {
+          description: 'Analysis not found or belongs to a different user',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (
+    request: FastifyRequest<{ Params: { id: string }; Body: { actual_portion_pct: number } }>,
+    reply: FastifyReply
+  ): Promise<{ id: string; actual_portion_pct: string; updated_at: string } | void> => {
+    const session = await requireAuth(request, reply);
+    if (!session) return;
+
+    const userId = session.user.id;
+    const { id } = request.params;
+    const { actual_portion_pct } = request.body;
+
+    app.logger.info({ userId, id, actual_portion_pct }, 'Updating meal analysis portion');
+
+    // Validate actual_portion_pct
+    if (typeof actual_portion_pct !== 'number' || actual_portion_pct < 0 || actual_portion_pct > 100) {
+      app.logger.warn({ userId, id, actual_portion_pct }, 'Invalid actual_portion_pct value');
+      return reply.status(400).send({
+        error: 'actual_portion_pct must be a number between 0 and 100',
+      });
+    }
+
+    // Find the analysis record
+    const analysis = await app.db.query.mealAnalyses.findFirst({
+      where: eq(schema.mealAnalyses.id, id),
+    });
+
+    if (!analysis) {
+      app.logger.warn({ userId, id }, 'Analysis not found');
+      return reply.status(404).send({
+        error: 'Analysis not found',
+      });
+    }
+
+    // Verify user ownership
+    if (analysis.userId !== userId) {
+      app.logger.warn({ userId, id, analysisUserId: analysis.userId }, 'Analysis belongs to different user');
+      return reply.status(404).send({
+        error: 'Analysis not found',
+      });
+    }
+
+    // Update the analysis
+    const [updatedAnalysis] = await app.db
+      .update(schema.mealAnalyses)
+      .set({
+        actualPortionPct: actual_portion_pct.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.mealAnalyses.id, id))
+      .returning();
+
+    app.logger.info({ userId, id, actual_portion_pct }, 'Meal analysis portion updated successfully');
+
+    return {
+      id: updatedAnalysis.id,
+      actual_portion_pct: updatedAnalysis.actualPortionPct ? updatedAnalysis.actualPortionPct.toString() : '',
+      updated_at: updatedAnalysis.updatedAt.toISOString(),
+    };
+  });
 }
