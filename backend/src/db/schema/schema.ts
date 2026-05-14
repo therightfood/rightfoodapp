@@ -34,6 +34,8 @@ export const mealAnalyses = pgTable('meal_analyses', {
   actualPortionPct: numeric('actual_portion_pct'),
   medication: text('medication'),
   doseMg: numeric('dose_mg'),
+  timeOfDay: text('time_of_day'),
+  calorieDesity: text('calorie_density'),
   status: text('status').notNull().default('pending'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

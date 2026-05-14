@@ -114,6 +114,24 @@ describe("API Integration Tests", () => {
       await expectStatus(res, 400);
     });
 
+    test("POST /api/scan/upload - should handle large files (200 or 413)", async () => {
+      const form = new FormData();
+      // Create a file with substantial content (~5MB) to test size limits
+      const largeContent = "x".repeat(5 * 1024 * 1024);
+      form.append("file", createTestFile("large.jpg", largeContent, "image/jpeg"));
+
+      const res = await authenticatedApi("/api/scan/upload", authToken, {
+        method: "POST",
+        body: form,
+      });
+      // Accept either 200 (within limit) or 413 (exceeds limit)
+      await expectStatus(res, 200, 413);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("image_url");
+      }
+    });
+
     test("POST /api/scan/analyze - should analyze image (may return 200 or 422 based on confidence)", async () => {
       const res = await authenticatedApi("/api/scan/analyze", authToken, {
         method: "POST",

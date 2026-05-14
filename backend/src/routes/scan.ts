@@ -26,13 +26,26 @@ interface MealAnalysisResponse {
   actual_portion_pct: string | null;
   medication: string | null;
   dose_mg: string | null;
+  time_of_day: string | null;
+  calorie_density: string | null;
   status: string;
   created_at: string;
   updated_at: string;
 }
 
+interface ConfirmedMeal {
+  actual_portion_pct: string | null;
+  portion_suggestion_pct: string | null;
+  dose_mg: string | null;
+  created_at: Date;
+}
+
 interface AnalysesListResponse {
   analyses: MealAnalysisResponse[];
+}
+
+interface MealAnalysisWithConfirmedCountResponse extends MealAnalysisResponse {
+  confirmed_meal_count: number;
 }
 
 const DOSE_TIERS: Record<string, number[]> = {
@@ -65,6 +78,66 @@ function calculateBaselinePortionPct(medication: string | null | undefined, dose
   return Math.max(35, Math.min(90, baseline));
 }
 
+function computePersonalizedPortion(
+  baseline: number,
+  confirmedMeals: ConfirmedMeal[],
+  currentDoseMg: number | null | undefined
+): number {
+  // Filter eligible meals
+  const now = new Date();
+  const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+  const eligibleMeals = confirmedMeals.filter(meal => {
+    if (meal.actual_portion_pct === null || meal.portion_suggestion_pct === null) {
+      return false;
+    }
+
+    // If dose differs from current, only include last 14 days
+    const mealDoseMg = meal.dose_mg ? Number(meal.dose_mg) : null;
+    if (currentDoseMg !== mealDoseMg) {
+      return meal.created_at >= twoWeeksAgo;
+    }
+
+    return true;
+  });
+
+  // Need at least 5 meals
+  if (eligibleMeals.length < 5) {
+    return baseline;
+  }
+
+  // Take most recent 60
+  const recentMeals = eligibleMeals.slice(0, 60);
+
+  // Compute weighted average ratio with time-decay
+  let totalWeight = 0;
+  let weightedRatioSum = 0;
+
+  for (const meal of recentMeals) {
+    const actualPct = Number(meal.actual_portion_pct);
+    const suggestedPct = Number(meal.portion_suggestion_pct);
+
+    if (suggestedPct === 0) continue;
+
+    const ratio = actualPct / suggestedPct;
+    const ageDays = (now.getTime() - meal.created_at.getTime()) / (24 * 60 * 60 * 1000);
+    const weight = 1 / (1 + ageDays * 0.05);
+
+    weightedRatioSum += ratio * weight;
+    totalWeight += weight;
+  }
+
+  if (totalWeight === 0) {
+    return baseline;
+  }
+
+  const weightedAvgRatio = weightedRatioSum / totalWeight;
+  const personalized = baseline * weightedAvgRatio;
+
+  // Clamp between 20 and 100, rounded
+  return Math.round(Math.max(20, Math.min(100, personalized)));
+}
+
 function formatResponse(row: any): MealAnalysisResponse {
   return {
     id: row.id,
@@ -83,6 +156,8 @@ function formatResponse(row: any): MealAnalysisResponse {
     actual_portion_pct: row.actualPortionPct ? row.actualPortionPct.toString() : null,
     medication: row.medication || null,
     dose_mg: row.doseMg ? row.doseMg.toString() : null,
+    time_of_day: row.timeOfDay || null,
+    calorie_density: row.calorieDesity || null,
     status: row.status,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -204,9 +279,12 @@ export function registerScanRoutes(app: App) {
             actual_portion_pct: { type: ['string', 'null'] },
             medication: { type: ['string', 'null'] },
             dose_mg: { type: ['string', 'null'] },
+            time_of_day: { type: ['string', 'null'] },
+            calorie_density: { type: ['string', 'null'] },
             status: { type: 'string' },
             created_at: { type: 'string', format: 'date-time' },
             updated_at: { type: 'string', format: 'date-time' },
+            confirmed_meal_count: { type: 'integer' },
           },
         },
         401: {
@@ -231,7 +309,7 @@ export function registerScanRoutes(app: App) {
   }, async (
     request: FastifyRequest<{ Body: AnalyzeBody }>,
     reply: FastifyReply
-  ): Promise<MealAnalysisResponse | void> => {
+  ): Promise<MealAnalysisWithConfirmedCountResponse | void> => {
     const session = await requireAuth(request, reply);
     if (!session) return;
 
@@ -350,6 +428,64 @@ export function registerScanRoutes(app: App) {
       // Calculate baseline portion percentage
       const baselinePortionPct = calculateBaselinePortionPct(medication, doseMg);
 
+      // Compute time_of_day from current server time
+      const now = new Date();
+      const hour = now.getHours();
+      let timeOfDay = 'night';
+      if (hour >= 5 && hour < 11) {
+        timeOfDay = 'morning';
+      } else if (hour >= 11 && hour < 17) {
+        timeOfDay = 'afternoon';
+      } else if (hour >= 17 && hour < 22) {
+        timeOfDay = 'evening';
+      }
+
+      // Compute calorie_density from total_calories
+      const totalCalories = Number(analysisData.total_calories || 0);
+      let calorieDesity = 'low';
+      if (totalCalories > 600) {
+        calorieDesity = 'high';
+      } else if (totalCalories >= 300) {
+        calorieDesity = 'medium';
+      }
+
+      // Fetch confirmed meals for personalization
+      const confirmedMeals = await app.db.query.mealAnalyses.findMany({
+        where: (table, { and, eq, isNotNull }) =>
+          and(
+            eq(table.userId, userId),
+            isNotNull(table.actualPortionPct),
+            eq(table.status, 'completed')
+          ),
+        orderBy: (table, { desc }) => desc(table.createdAt),
+        limit: 60,
+      });
+
+      // Format confirmed meals for personalization function
+      const confirmedMealsData: ConfirmedMeal[] = confirmedMeals.map(meal => ({
+        actual_portion_pct: meal.actualPortionPct ? meal.actualPortionPct.toString() : null,
+        portion_suggestion_pct: meal.portionSuggestionPct ? meal.portionSuggestionPct.toString() : null,
+        dose_mg: meal.doseMg ? meal.doseMg.toString() : null,
+        created_at: meal.createdAt,
+      }));
+
+      // Count total confirmed meals
+      const confirmedMealCount = await app.db.query.mealAnalyses.findMany({
+        where: (table, { and, eq, isNotNull }) =>
+          and(
+            eq(table.userId, userId),
+            isNotNull(table.actualPortionPct),
+            eq(table.status, 'completed')
+          ),
+      });
+
+      // Compute personalized portion
+      const personalizedPortionPct = computePersonalizedPortion(
+        baselinePortionPct,
+        confirmedMealsData,
+        doseMg
+      );
+
       // Update analysis with results
       const [updatedAnalysis] = await app.db
         .update(schema.mealAnalyses)
@@ -363,7 +499,9 @@ export function registerScanRoutes(app: App) {
           fiberG: analysisData.fiber_g ? analysisData.fiber_g.toString() : null,
           confidence: confidence.toString(),
           baselinePortionPct: baselinePortionPct.toString(),
-          portionSuggestionPct: baselinePortionPct.toString(),
+          portionSuggestionPct: personalizedPortionPct.toString(),
+          timeOfDay,
+          calorieDesity,
           status: 'completed',
           updatedAt: new Date(),
         })
@@ -372,7 +510,12 @@ export function registerScanRoutes(app: App) {
 
       app.logger.info({ analysisId: updatedAnalysis.id, userId }, 'Analysis completed successfully');
 
-      return formatResponse(updatedAnalysis);
+      // Return response with confirmed meal count
+      const response = formatResponse(updatedAnalysis);
+      return {
+        ...response,
+        confirmed_meal_count: confirmedMealCount.length,
+      };
     } catch (err) {
       app.logger.error({ analysisId: createdAnalysis.id, userId, err }, 'Error during meal analysis');
 
@@ -426,6 +569,8 @@ export function registerScanRoutes(app: App) {
                   actual_portion_pct: { type: ['string', 'null'] },
                   medication: { type: ['string', 'null'] },
                   dose_mg: { type: ['string', 'null'] },
+                  time_of_day: { type: ['string', 'null'] },
+                  calorie_density: { type: ['string', 'null'] },
                   status: { type: 'string' },
                   created_at: { type: 'string', format: 'date-time' },
                   updated_at: { type: 'string', format: 'date-time' },
