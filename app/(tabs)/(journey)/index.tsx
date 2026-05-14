@@ -50,9 +50,30 @@ interface Summary {
   week_meal_count: number;
 }
 
+interface DailyBreakdown {
+  date: string;
+  calories: number;
+  meal_count: number;
+}
+
+interface WeekMacros {
+  avg_daily_calories: number;
+  avg_daily_protein_g: number;
+  avg_daily_carbs_g: number;
+  avg_daily_fat_g: number;
+}
+
+interface TDEE {
+  calorie_target: number;
+  protein_target: number;
+}
+
 interface JourneyResponse {
   summary: Summary;
   meals: Meal[];
+  daily_breakdown?: DailyBreakdown[];
+  week_macros?: WeekMacros;
+  tdee?: TDEE;
 }
 
 type Section = { title: string; data: Meal[] };
@@ -132,6 +153,10 @@ export default function JourneyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [activeTab, setActiveTab] = useState<'week' | 'alltime'>('week');
+  const [dailyBreakdown, setDailyBreakdown] = useState<DailyBreakdown[]>([]);
+  const [weekMacros, setWeekMacros] = useState<WeekMacros | null>(null);
+  const [tdee, setTdee] = useState<TDEE | null>(null);
 
   const sections = useMemo(() => groupMealsByDate(meals), [meals]);
 
@@ -144,9 +169,15 @@ export default function JourneyScreen() {
       console.log('[Journey] Journey data received', {
         mealCount: data.meals?.length,
         todayCalories: data.summary?.today_calories,
+        hasDailyBreakdown: !!data.daily_breakdown,
+        hasWeekMacros: !!data.week_macros,
+        hasTdee: !!data.tdee,
       });
       setSummary(data.summary);
       setMeals(data.meals || []);
+      setDailyBreakdown(data.daily_breakdown || []);
+      setWeekMacros(data.week_macros || null);
+      setTdee(data.tdee || null);
     } catch (err: any) {
       console.log('[Journey] Error fetching journey', err?.message);
       setError(err?.message || 'Unknown error');
@@ -202,6 +233,11 @@ export default function JourneyScreen() {
     console.log('[Journey] Retry button pressed');
     fetchJourney();
   }, [fetchJourney]);
+
+  const handleTabChange = useCallback((tab: 'week' | 'alltime') => {
+    console.log('[Journey] Tab changed', { tab });
+    setActiveTab(tab);
+  }, []);
 
   // ── Render states ──────────────────────────────────────────────────────────
 
@@ -268,7 +304,14 @@ export default function JourneyScreen() {
           </View>
         )}
         ListHeaderComponent={
-          <JourneyHeader summary={summary!} />
+          <JourneyHeader
+            summary={summary!}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            dailyBreakdown={dailyBreakdown}
+            weekMacros={weekMacros}
+            tdee={tdee}
+          />
         }
         contentContainerStyle={styles.listContent}
         stickySectionHeadersEnabled={false}
@@ -287,7 +330,21 @@ export default function JourneyScreen() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function JourneyHeader({ summary }: { summary: Summary }) {
+function JourneyHeader({
+  summary,
+  activeTab,
+  onTabChange,
+  dailyBreakdown,
+  weekMacros,
+  tdee,
+}: {
+  summary: Summary;
+  activeTab: 'week' | 'alltime';
+  onTabChange: (tab: 'week' | 'alltime') => void;
+  dailyBreakdown: DailyBreakdown[];
+  weekMacros: WeekMacros | null;
+  tdee: TDEE | null;
+}) {
   const todayCalories = Math.round(summary.today_calories);
   const todayProtein = Math.round(summary.today_protein_g);
   const todayMealCount = summary.today_meal_count;
@@ -323,6 +380,153 @@ function JourneyHeader({ summary }: { summary: Summary }) {
           </Text>
         </View>
       </View>
+
+      {/* Tab switcher */}
+      <View style={styles.tabSwitcher}>
+        <AnimatedPressable
+          style={[styles.tabButton, activeTab === 'week' && styles.tabButtonActive]}
+          onPress={() => onTabChange('week')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'week' && styles.tabButtonTextActive]}>
+            This Week
+          </Text>
+        </AnimatedPressable>
+        <AnimatedPressable
+          style={[styles.tabButton, activeTab === 'alltime' && styles.tabButtonActive]}
+          onPress={() => onTabChange('alltime')}
+        >
+          <Text style={[styles.tabButtonText, activeTab === 'alltime' && styles.tabButtonTextActive]}>
+            All Time
+          </Text>
+        </AnimatedPressable>
+      </View>
+
+      {activeTab === 'week' && (
+        <NutritionDashboard
+          dailyBreakdown={dailyBreakdown}
+          weekMacros={weekMacros}
+          tdee={tdee}
+        />
+      )}
+
+      {activeTab === 'alltime' && (
+        <View style={styles.allTimeNote}>
+          <Text style={styles.allTimeNoteText}>All your scanned meals</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── NutritionDashboard ───────────────────────────────────────────────────────
+
+function NutritionDashboard({
+  dailyBreakdown,
+  weekMacros,
+  tdee,
+}: {
+  dailyBreakdown: DailyBreakdown[];
+  weekMacros: WeekMacros | null;
+  tdee: TDEE | null;
+}) {
+  const calorieTarget = tdee?.calorie_target ?? 1500;
+  const proteinTarget = tdee?.protein_target ?? 84;
+  const maxCalories = Math.max(...dailyBreakdown.map(d => d.calories), calorieTarget, 1);
+
+  return (
+    <View style={styles.dashboardContainer}>
+      {/* Targets row */}
+      <View style={styles.targetsRow}>
+        <Text style={styles.targetsLabel}>Your targets</Text>
+        <Text style={styles.targetsValue}>
+          Daily: {calorieTarget} kcal  ·  Protein: {proteinTarget}g
+        </Text>
+      </View>
+
+      {/* Bar chart */}
+      <View style={styles.chartContainer}>
+        <BarChart
+          data={dailyBreakdown}
+          maxValue={maxCalories}
+          targetValue={calorieTarget}
+        />
+      </View>
+
+      {/* Macro cards 2x2 grid */}
+      {weekMacros && (
+        <View style={styles.macroGrid}>
+          <MacroCard label="Avg Daily Calories" value={weekMacros.avg_daily_calories} unit="kcal" />
+          <MacroCard label="Avg Protein" value={weekMacros.avg_daily_protein_g} unit="g" />
+          <MacroCard label="Avg Carbs" value={weekMacros.avg_daily_carbs_g} unit="g" />
+          <MacroCard label="Avg Fat" value={weekMacros.avg_daily_fat_g} unit="g" />
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── BarChart ─────────────────────────────────────────────────────────────────
+
+function BarChart({
+  data,
+  maxValue,
+  targetValue,
+}: {
+  data: DailyBreakdown[];
+  maxValue: number;
+  targetValue: number;
+}) {
+  const chartHeight = 120;
+  const targetLineY = chartHeight - (targetValue / maxValue) * chartHeight;
+
+  return (
+    <View style={styles.barChartWrapper}>
+      {/* Target dashed line */}
+      <View style={[styles.targetLineContainer, { top: targetLineY }]}>
+        {Array.from({ length: 20 }).map((_, i) => (
+          <View key={i} style={styles.dash} />
+        ))}
+      </View>
+
+      {/* Bars row */}
+      <View style={styles.barsRow}>
+        {data.map((day, index) => {
+          const barHeightPct = maxValue > 0 ? (day.calories / maxValue) : 0;
+          const barHeight = Math.max(barHeightPct * chartHeight, day.calories > 0 ? 4 : 0);
+          const barBg = day.calories > 0 ? COLORS.primary : COLORS.surfaceSecondary;
+
+          return (
+            <View key={index} style={styles.barColumn}>
+              <View style={styles.barTrack}>
+                <View
+                  style={[
+                    styles.bar,
+                    {
+                      height: barHeight,
+                      backgroundColor: barBg,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.barLabel}>{day.date}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─── MacroCard ────────────────────────────────────────────────────────────────
+
+function MacroCard({ label, value, unit }: { label: string; value: number; unit: string }) {
+  const displayValue = Math.round(value);
+
+  return (
+    <View style={styles.macroCard}>
+      <Text style={styles.macroValue}>{displayValue}</Text>
+      <Text style={styles.macroUnit}>{unit}</Text>
+      <Text style={styles.macroLabel}>{label}</Text>
     </View>
   );
 }
@@ -654,5 +858,161 @@ const styles = StyleSheet.create({
   mealSep: {
     fontSize: 13,
     color: COLORS.textTertiary,
+  },
+
+  // Tab switcher
+  tabSwitcher: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    backgroundColor: COLORS.surfaceSecondary,
+    borderRadius: 10,
+    padding: 3,
+  },
+  tabButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: COLORS.surface,
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  tabButtonTextActive: {
+    color: COLORS.text,
+    fontWeight: '600',
+  },
+
+  // All time note
+  allTimeNote: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  allTimeNoteText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+
+  // Dashboard container
+  dashboardContainer: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+  },
+  targetsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  targetsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    letterSpacing: 0.3,
+  },
+  targetsValue: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  chartContainer: {
+    marginTop: 4,
+  },
+
+  // Bar chart
+  barChartWrapper: {
+    height: 150,
+    position: 'relative',
+    marginTop: 8,
+  },
+  targetLineContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  dash: {
+    width: 6,
+    height: 1.5,
+    backgroundColor: COLORS.textTertiary,
+    borderRadius: 1,
+  },
+  barsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 120,
+    gap: 6,
+    paddingHorizontal: 4,
+  },
+  barColumn: {
+    flex: 1,
+    alignItems: 'center',
+    height: 150,
+    justifyContent: 'flex-end',
+  },
+  barTrack: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bar: {
+    width: '80%',
+    borderRadius: 4,
+    minHeight: 0,
+  },
+  barLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  // Macro grid
+  macroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  macroCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  macroValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  macroUnit: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
+  macroLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 4,
   },
 });
