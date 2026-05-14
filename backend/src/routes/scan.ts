@@ -769,6 +769,33 @@ export function registerScanRoutes(app: App) {
                 },
               },
             },
+            daily_breakdown: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  date: { type: 'string' },
+                  calories: { type: 'integer' },
+                  meal_count: { type: 'integer' },
+                },
+              },
+            },
+            week_macros: {
+              type: 'object',
+              properties: {
+                avg_daily_calories: { type: 'integer' },
+                avg_daily_protein_g: { type: 'integer' },
+                avg_daily_carbs_g: { type: 'integer' },
+                avg_daily_fat_g: { type: 'integer' },
+              },
+            },
+            tdee: {
+              type: 'object',
+              properties: {
+                calorie_target: { type: 'integer' },
+                protein_target: { type: 'integer' },
+              },
+            },
           },
         },
         401: {
@@ -828,18 +855,34 @@ export function registerScanRoutes(app: App) {
       return Math.round(protein * effectivePortion / 100);
     };
 
+    // Helper function to calculate effective carbs
+    const calculateEffectiveCarbs = (meal: any, effectivePortion: number): number => {
+      const carbs = Number(meal.carbsG || 0);
+      return Math.round(carbs * effectivePortion / 100);
+    };
+
+    // Helper function to calculate effective fat
+    const calculateEffectiveFat = (meal: any, effectivePortion: number): number => {
+      const fat = Number(meal.fatG || 0);
+      return Math.round(fat * effectivePortion / 100);
+    };
+
     // Process meals and calculate stats
     let todayCalories = 0;
     let todayProtein = 0;
     let todayMealCount = 0;
     let weekCalories = 0;
     let weekProtein = 0;
+    let weekCarbs = 0;
+    let weekFat = 0;
     let weekMealCount = 0;
 
     const processedMeals = meals.map(meal => {
       const effectivePortion = getEffectivePortion(meal);
       const effectiveCalories = calculateEffectiveCalories(meal, effectivePortion);
       const effectiveProtein = calculateEffectiveProtein(meal, effectivePortion);
+      const effectiveCarbs = calculateEffectiveCarbs(meal, effectivePortion);
+      const effectiveFat = calculateEffectiveFat(meal, effectivePortion);
 
       // Check if meal is from today
       if (meal.createdAt >= todayStart && meal.createdAt < todayEnd) {
@@ -852,6 +895,8 @@ export function registerScanRoutes(app: App) {
       if (meal.createdAt >= weekStart) {
         weekCalories += effectiveCalories;
         weekProtein += effectiveProtein;
+        weekCarbs += effectiveCarbs;
+        weekFat += effectiveFat;
         weekMealCount++;
       }
 
@@ -881,9 +926,73 @@ export function registerScanRoutes(app: App) {
       };
     });
 
-    // Calculate week averages
-    const weekAvgDailyCalories = weekMealCount > 0 ? Math.round(weekCalories / 7) : 0;
-    const weekAvgDailyProtein = weekMealCount > 0 ? Math.round(weekProtein / 7) : 0;
+    // Calculate week averages for macros
+    const weekAvgDailyCalories = Math.round(weekCalories / 7);
+    const weekAvgDailyProtein = Math.round(weekProtein / 7);
+    const weekAvgDailyCarbs = Math.round(weekCarbs / 7);
+    const weekAvgDailyFat = Math.round(weekFat / 7);
+
+    // Calculate daily breakdown for last 7 days
+    const dailyBreakdown = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayDate = new Date(todayStart.getTime() - i * 24 * 60 * 60 * 1000);
+      const dayEnd = new Date(dayDate.getTime() + 24 * 60 * 60 * 1000);
+
+      // Find meals for this day
+      const dayMeals = meals.filter(m => m.createdAt >= dayDate && m.createdAt < dayEnd);
+
+      let dayCalories = 0;
+      dayMeals.forEach(meal => {
+        const effectivePortion = getEffectivePortion(meal);
+        dayCalories += calculateEffectiveCalories(meal, effectivePortion);
+      });
+
+      const weekdayName = dayDate.toLocaleDateString('en-US', { weekday: 'short' });
+
+      dailyBreakdown.push({
+        date: weekdayName,
+        calories: dayCalories,
+        meal_count: dayMeals.length,
+      });
+    }
+
+    // Fetch user profile for TDEE calculation
+    const userProfile = await app.db.query.userProfiles.findFirst({
+      where: (table, { eq }) => eq(table.userId, userId),
+    });
+
+    // Calculate TDEE
+    let tdee = { calorie_target: 1500, protein_target: 84 };
+
+    if (
+      userProfile &&
+      userProfile.weightKg &&
+      userProfile.heightCm &&
+      userProfile.age &&
+      userProfile.gender
+    ) {
+      const weight = Number(userProfile.weightKg);
+      const height = Number(userProfile.heightCm);
+      const age = userProfile.age;
+      const gender = userProfile.gender.toLowerCase();
+
+      let bmr: number;
+      if (gender === 'male') {
+        bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
+      } else {
+        // female, non-binary, prefer_not_to_say all use female formula
+        bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;
+      }
+
+      const tdeeValue = bmr * 1.4;
+      const calorieTarget = Math.round(tdeeValue * 0.70);
+      const proteinTarget = Math.round(weight * 1.4);
+
+      tdee = {
+        calorie_target: calorieTarget,
+        protein_target: proteinTarget,
+      };
+    }
 
     app.logger.info(
       {
@@ -905,6 +1014,14 @@ export function registerScanRoutes(app: App) {
         week_meal_count: weekMealCount,
       },
       meals: processedMeals,
+      daily_breakdown: dailyBreakdown,
+      week_macros: {
+        avg_daily_calories: weekAvgDailyCalories,
+        avg_daily_protein_g: weekAvgDailyProtein,
+        avg_daily_carbs_g: weekAvgDailyCarbs,
+        avg_daily_fat_g: weekAvgDailyFat,
+      },
+      tdee,
     };
   });
 }
