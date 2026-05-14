@@ -151,6 +151,7 @@ export default function ScanScreen() {
           foodsIdentified: JSON.stringify(analysis.foods_identified),
           medication: analysis.medication || '',
           doseMg: String(analysis.dose_mg || ''),
+          confirmedMealCount: String(analysis.confirmed_meal_count ?? 0),
         },
       });
     } catch (err) {

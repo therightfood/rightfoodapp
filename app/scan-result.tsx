@@ -44,6 +44,7 @@ export default function ScanResultScreen() {
     foodsIdentified: string;
     medication: string;
     doseMg: string;
+    confirmedMealCount: string;
     error: string;
   }>();
 
@@ -66,6 +67,10 @@ export default function ScanResultScreen() {
   const hasMedication = !!medicationName && !!doseMg;
   const medicationDisplay =
     medicationName.charAt(0).toUpperCase() + medicationName.slice(1);
+
+  const confirmedMealCount = parseInt(params.confirmedMealCount || '0', 10);
+  const mealsUntilPersonalized = Math.max(0, 5 - confirmedMealCount);
+  const isPersonalized = confirmedMealCount >= 5;
 
   // ─── Slider / animation state ─────────────────────────────────────────────────
   const initialPortion = Math.round(portionPctNum);
@@ -97,9 +102,14 @@ export default function ScanResultScreen() {
   const adjustedCarbsDisplay = adjustedCarbs.toString();
   const adjustedFatDisplay = adjustedFat.toString();
 
+  const mealSuffix = mealsUntilPersonalized === 1 ? '' : 's';
+  const personalizationHintText = `Confirm ${mealsUntilPersonalized} more meal${mealSuffix} to unlock personalized suggestions`;
+
   const heroText = `Eat ${sliderValue}% of this`;
   const subtitleText = hasMedication
-    ? `Based on your ${medicationDisplay} ${doseMg}mg dose`
+    ? isPersonalized
+      ? `Personalized for your ${medicationDisplay} ${doseMg}mg dose`
+      : `Based on your ${medicationDisplay} ${doseMg}mg dose`
     : 'Based on your GLP-1 dose';
   const captionText = `Based on full-plate estimate of ${totalCaloriesDisplay} kcal`;
   const iAteText = `I ate ${sliderValue}%`;
@@ -330,6 +340,12 @@ export default function ScanResultScreen() {
             <Text style={styles.satietyBarLabelRight}>Full plate</Text>
           </View>
         </View>
+
+        {mealsUntilPersonalized > 0 && (
+          <View style={styles.personalizationHint}>
+            <Text style={styles.personalizationHintText}>{personalizationHintText}</Text>
+          </View>
+        )}
 
         {/* ── Section 2: Nutrition panel ── */}
         <View style={styles.nutritionCard}>
@@ -582,6 +598,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+
+  // Personalization hint
+  personalizationHint: {
+    marginTop: 12,
+    marginHorizontal: 20,
+    backgroundColor: COLORS.accentMuted,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  personalizationHintText: {
+    fontSize: 13,
+    color: COLORS.accent,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 
   // Action row
