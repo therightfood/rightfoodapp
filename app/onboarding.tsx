@@ -62,20 +62,31 @@ function ProgressBar({ step }: { step: number }) {
 
   const stepLabel = `Step ${step} of 4`;
 
+  const staticWidth = `${(step / 4) * 100}%`;
+
   return (
     <View style={styles.progressContainer}>
       <View style={styles.progressTrack}>
-        <Animated.View
-          style={[
-            styles.progressFill,
-            {
-              width: fillAnim.interpolate({
-                inputRange: [0, 100],
-                outputRange: ['0%', '100%'],
-              }),
-            },
-          ]}
-        />
+        {Platform.OS === 'web' ? (
+          <View
+            style={[
+              styles.progressFill,
+              { width: staticWidth as any },
+            ]}
+          />
+        ) : (
+          <Animated.View
+            style={[
+              styles.progressFill,
+              {
+                width: fillAnim.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: ['0%', '100%'],
+                }),
+              },
+            ]}
+          />
+        )}
       </View>
       <Text style={styles.progressLabel}>{stepLabel}</Text>
     </View>
@@ -241,25 +252,47 @@ function Step2({
       </View>
 
       {selectedMed && (
-        <Animated.View style={[styles.dosePicker, { opacity: doseOpacity }]}>
-          <Text style={styles.doseLabel}>Select your dose</Text>
-          <View style={styles.chipRow}>
-            {currentDoses.map((dose) => {
-              const isSelected = selectedDose === dose;
-              return (
-                <AnimatedPressable
-                  key={dose}
-                  onPress={() => handleSelectDose(dose)}
-                  style={[styles.doseChip, isSelected && styles.doseChipSelected]}
-                >
-                  <Text style={[styles.doseChipText, isSelected && styles.doseChipTextSelected]}>
-                    {dose}
-                  </Text>
-                </AnimatedPressable>
-              );
-            })}
+        Platform.OS === 'web' ? (
+          <View style={[styles.dosePicker, { opacity: 1 }]}>
+            <Text style={styles.doseLabel}>Select your dose</Text>
+            <View style={styles.chipRow}>
+              {currentDoses.map((dose) => {
+                const isSelected = selectedDose === dose;
+                return (
+                  <AnimatedPressable
+                    key={dose}
+                    onPress={() => handleSelectDose(dose)}
+                    style={[styles.doseChip, isSelected && styles.doseChipSelected]}
+                  >
+                    <Text style={[styles.doseChipText, isSelected && styles.doseChipTextSelected]}>
+                      {dose}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              })}
+            </View>
           </View>
-        </Animated.View>
+        ) : (
+          <Animated.View style={[styles.dosePicker, { opacity: doseOpacity }]}>
+            <Text style={styles.doseLabel}>Select your dose</Text>
+            <View style={styles.chipRow}>
+              {currentDoses.map((dose) => {
+                const isSelected = selectedDose === dose;
+                return (
+                  <AnimatedPressable
+                    key={dose}
+                    onPress={() => handleSelectDose(dose)}
+                    style={[styles.doseChip, isSelected && styles.doseChipSelected]}
+                  >
+                    <Text style={[styles.doseChipText, isSelected && styles.doseChipTextSelected]}>
+                      {dose}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              })}
+            </View>
+          </Animated.View>
+        )
       )}
 
       <View style={styles.buttonSpacer} />
@@ -663,19 +696,35 @@ export default function OnboardingScreen() {
           {step < 4 && <ProgressBar step={step} />}
         </View>
 
-        <Animated.View style={[styles.flex, { opacity: stepOpacity }]}>
-          <ScrollView
-            style={styles.flex}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {step === 1 && <Step1 onNext={handleStep1Next} />}
-            {step === 2 && <Step2 onNext={handleStep2Next} />}
-            {step === 3 && <Step3 onNext={handleStep3Next} />}
-            {step === 4 && <Step4 medication={medication} dose={dose} />}
-          </ScrollView>
-        </Animated.View>
+        {Platform.OS === 'web' ? (
+          <View style={[styles.flex, { opacity: 1 }]}>
+            <ScrollView
+              style={styles.flex}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {step === 1 && <Step1 onNext={handleStep1Next} />}
+              {step === 2 && <Step2 onNext={handleStep2Next} />}
+              {step === 3 && <Step3 onNext={handleStep3Next} />}
+              {step === 4 && <Step4 medication={medication} dose={dose} />}
+            </ScrollView>
+          </View>
+        ) : (
+          <Animated.View style={[styles.flex, { opacity: stepOpacity }]}>
+            <ScrollView
+              style={styles.flex}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {step === 1 && <Step1 onNext={handleStep1Next} />}
+              {step === 2 && <Step2 onNext={handleStep2Next} />}
+              {step === 3 && <Step3 onNext={handleStep3Next} />}
+              {step === 4 && <Step4 medication={medication} dose={dose} />}
+            </ScrollView>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
