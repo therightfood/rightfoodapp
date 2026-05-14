@@ -91,6 +91,42 @@ describe("API Integration Tests", () => {
     });
   });
 
+  describe("OneSignal ID endpoints", () => {
+    test("PUT /api/profile/onesignal-id - should update OneSignal ID when authenticated", async () => {
+      const res = await authenticatedApi("/api/profile/onesignal-id", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          onesignal_id: "test-onesignal-id-12345",
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("ok");
+      expect(data.ok).toBe(true);
+    });
+
+    test("PUT /api/profile/onesignal-id - should return 400 when onesignal_id is missing", async () => {
+      const res = await authenticatedApi("/api/profile/onesignal-id", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      await expectStatus(res, 400);
+    });
+
+    test("PUT /api/profile/onesignal-id - should return 401 when not authenticated", async () => {
+      const res = await api("/api/profile/onesignal-id", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          onesignal_id: "test-id",
+        }),
+      });
+      await expectStatus(res, 401);
+    });
+  });
+
   describe("Reminder endpoints", () => {
     test("PUT /api/profile/reminders - should update reminders when authenticated", async () => {
       const res = await authenticatedApi("/api/profile/reminders", authToken, {
@@ -563,6 +599,36 @@ describe("API Integration Tests", () => {
         const data = await res.json();
         expect(data).toHaveProperty("session_id");
         expect(data).toHaveProperty("extracted_items");
+      }
+    });
+  });
+
+  describe("Notification endpoints", () => {
+    test("POST /api/notifications/check-and-send - should accept requests (with or without scheduler secret)", async () => {
+      const res = await api("/api/notifications/check-and-send", {
+        method: "POST",
+      });
+      // Accept 200 if no scheduler secret required, or 401 if scheduler secret is configured
+      await expectStatus(res, 200, 401);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("checked");
+        expect(data).toHaveProperty("sent");
+        expect(data).toHaveProperty("skipped");
+      }
+    });
+
+    test("POST /api/notifications/check-and-send - should work with authenticated requests", async () => {
+      const res = await authenticatedApi("/api/notifications/check-and-send", authToken, {
+        method: "POST",
+      });
+      // Accept 200 if no scheduler secret required, or 401 if scheduler secret is configured and not provided
+      await expectStatus(res, 200, 401);
+      if (res.status === 200) {
+        const data = await res.json();
+        expect(data).toHaveProperty("checked");
+        expect(data).toHaveProperty("sent");
+        expect(data).toHaveProperty("skipped");
       }
     });
   });

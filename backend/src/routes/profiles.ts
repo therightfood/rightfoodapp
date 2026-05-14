@@ -369,6 +369,7 @@ export function registerProfileRoutes(app: App) {
             items: { type: 'string' },
             maxItems: 3,
           },
+          timezone: { type: 'string' },
         },
       },
       response: {
@@ -378,6 +379,7 @@ export function registerProfileRoutes(app: App) {
           properties: {
             reminder_enabled: { type: 'boolean' },
             reminder_times: { type: 'array', items: { type: 'string' } },
+            timezone: { type: 'string' },
           },
         },
         400: {
@@ -397,16 +399,16 @@ export function registerProfileRoutes(app: App) {
       },
     },
   }, async (
-    request: FastifyRequest<{ Body: { reminder_enabled: boolean; reminder_times: string[] } }>,
+    request: FastifyRequest<{ Body: { reminder_enabled: boolean; reminder_times: string[]; timezone?: string } }>,
     reply: FastifyReply
-  ): Promise<{ reminder_enabled: boolean; reminder_times: string[] } | void> => {
+  ): Promise<{ reminder_enabled: boolean; reminder_times: string[]; timezone: string } | void> => {
     const session = await requireAuth(request, reply);
     if (!session) return;
 
     const userId = session.user.id;
-    const { reminder_enabled, reminder_times } = request.body;
+    const { reminder_enabled, reminder_times, timezone } = request.body;
 
-    app.logger.info({ userId, reminder_enabled, reminder_times }, 'Updating reminders');
+    app.logger.info({ userId, reminder_enabled, reminder_times, timezone }, 'Updating reminders');
 
     // Validate reminder_times format (HH:MM)
     const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
@@ -415,22 +417,34 @@ export function registerProfileRoutes(app: App) {
       return reply.status(400).send({ error: 'Invalid reminder_times format' });
     }
 
+    // Fetch current profile to get existing timezone if not provided
+    const currentProfile = await app.db.query.userProfiles.findFirst({
+      where: eq(schema.userProfiles.userId, userId),
+    });
+
+    const updateData: any = {
+      reminderEnabled: reminder_enabled,
+      reminderTimes: reminder_times,
+      updatedAt: new Date(),
+    };
+
+    if (timezone) {
+      updateData.timezone = timezone;
+    }
+
     // Upsert user_profiles
-    await app.db
+    const [updated] = await app.db
       .insert(schema.userProfiles)
       .values({
         id: userId,
         userId: userId,
         reminderEnabled: reminder_enabled,
         reminderTimes: reminder_times,
+        timezone: timezone || 'UTC',
       })
       .onConflictDoUpdate({
         target: schema.userProfiles.id,
-        set: {
-          reminderEnabled: reminder_enabled,
-          reminderTimes: reminder_times,
-          updatedAt: new Date(),
-        },
+        set: updateData,
       })
       .returning();
 
@@ -439,7 +453,70 @@ export function registerProfileRoutes(app: App) {
     return {
       reminder_enabled,
       reminder_times,
+      timezone: updated.timezone,
     };
+  });
+
+  // PUT /api/profile/onesignal-id - Update OneSignal ID
+  app.fastify.put('/api/profile/onesignal-id', {
+    schema: {
+      description: 'Update OneSignal ID for push notifications',
+      tags: ['profiles'],
+      body: {
+        type: 'object',
+        required: ['onesignal_id'],
+        properties: {
+          onesignal_id: { type: 'string' },
+        },
+      },
+      response: {
+        200: {
+          description: 'OneSignal ID updated',
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+          },
+        },
+        401: {
+          description: 'Unauthorized',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (
+    request: FastifyRequest<{ Body: { onesignal_id: string } }>,
+    reply: FastifyReply
+  ): Promise<{ ok: boolean } | void> => {
+    const session = await requireAuth(request, reply);
+    if (!session) return;
+
+    const userId = session.user.id;
+    const { onesignal_id } = request.body;
+
+    app.logger.info({ userId, onesignal_id }, 'Updating OneSignal ID');
+
+    await app.db
+      .insert(schema.userProfiles)
+      .values({
+        id: userId,
+        userId: userId,
+        onesignalId: onesignal_id,
+      })
+      .onConflictDoUpdate({
+        target: schema.userProfiles.id,
+        set: {
+          onesignalId: onesignal_id,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    app.logger.info({ userId }, 'OneSignal ID updated successfully');
+
+    return { ok: true };
   });
 
   // DELETE /api/account - Delete user account and all data

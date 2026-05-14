@@ -16,6 +16,8 @@ export const userProfiles = pgTable('user_profiles', {
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false),
   reminderEnabled: boolean('reminder_enabled').notNull().default(false),
   reminderTimes: jsonb('reminder_times').default([]),
+  timezone: text('timezone').notNull().default('UTC'),
+  onesignalId: text('onesignal_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

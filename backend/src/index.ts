@@ -5,6 +5,7 @@ import { registerProfileRoutes } from './routes/profiles.js';
 import { registerScanRoutes } from './routes/scan.js';
 import { registerRecipeRoutes } from './routes/recipes.js';
 import { registerMenuRoutes } from './routes/menus.js';
+import { registerNotificationRoutes } from './routes/notifications.js';
 
 // Combine app and auth schemas
 const schema = { ...appSchema, ...authSchema };
@@ -38,6 +39,7 @@ registerProfileRoutes(app);
 registerScanRoutes(app);
 registerRecipeRoutes(app);
 registerMenuRoutes(app);
+registerNotificationRoutes(app);
 
 await app.run();
 app.logger.info('Application running');
