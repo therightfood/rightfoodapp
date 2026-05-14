@@ -23,6 +23,9 @@ import {
 } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
+import { authClient } from '@/lib/auth';
+
+const BACKEND_URL = 'https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev';
 
 type ScreenState = 'empty' | 'camera' | 'analyzing';
 type FlashState = 'off' | 'on';
@@ -67,6 +70,101 @@ export default function ScanScreen() {
     setScreenState('camera');
   };
 
+  const analyzePhoto = async (uri: string) => {
+    setCapturedUri(uri);
+    setScreenState('analyzing');
+
+    try {
+      console.log('[Scan] Getting auth token');
+      const session = await authClient.getSession();
+      const token = session?.data?.session?.token;
+      if (!token) throw new Error('No auth token');
+
+      // Step 1: Upload the image
+      console.log('[Scan] Uploading image to /api/scan/upload');
+      const formData = new FormData();
+      formData.append('image', {
+        uri,
+        type: 'image/jpeg',
+        name: 'meal.jpg',
+      } as any);
+
+      const uploadRes = await fetch(`${BACKEND_URL}/api/scan/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(`Upload failed (${uploadRes.status}): ${errText}`);
+      }
+      const { image_url } = await uploadRes.json();
+      console.log('[Scan] Upload succeeded, image_url:', image_url);
+
+      // Step 2: Analyze
+      console.log('[Scan] Sending image_url to /api/scan/analyze');
+      const analyzeRes = await fetch(`${BACKEND_URL}/api/scan/analyze`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image_url }),
+      });
+
+      if (analyzeRes.status === 422) {
+        const errData = await analyzeRes.json();
+        console.log('[Scan] Low confidence result:', errData);
+        router.push({
+          pathname: '/scan-result',
+          params: {
+            photoUri: uri,
+            analysisId: errData.id || '',
+            error: 'low_confidence',
+          },
+        });
+        return;
+      }
+
+      if (!analyzeRes.ok) {
+        const errText = await analyzeRes.text();
+        throw new Error(`Analysis failed (${analyzeRes.status}): ${errText}`);
+      }
+
+      const analysis = await analyzeRes.json();
+      console.log('[Scan] Analysis succeeded:', analysis.id, analysis.dish_name);
+
+      router.push({
+        pathname: '/scan-result',
+        params: {
+          photoUri: uri,
+          analysisId: analysis.id,
+          dishName: analysis.dish_name,
+          portionPct: String(analysis.portion_suggestion_pct),
+          totalCalories: String(analysis.total_calories),
+          proteinG: String(analysis.protein_g),
+          carbsG: String(analysis.carbs_g),
+          fatG: String(analysis.fat_g),
+          fiberG: String(analysis.fiber_g),
+          confidence: String(analysis.confidence),
+          foodsIdentified: JSON.stringify(analysis.foods_identified),
+          medication: analysis.medication || '',
+          doseMg: String(analysis.dose_mg || ''),
+        },
+      });
+    } catch (err) {
+      console.error('[Scan] Analysis error:', err);
+      router.push({
+        pathname: '/scan-result',
+        params: {
+          photoUri: uri,
+          error: 'failed',
+        },
+      });
+    }
+  };
+
   const handleChooseFromLibrary = async () => {
     console.log('[Scan] "Choose from library" button pressed');
     const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -83,12 +181,7 @@ export default function ScanScreen() {
     if (!result.canceled && result.assets.length > 0) {
       const uri = result.assets[0].uri;
       console.log('[Scan] Image selected from library:', uri);
-      setCapturedUri(uri);
-      setScreenState('analyzing');
-      setTimeout(() => {
-        console.log('[Scan] Navigating to scan-result with library photo');
-        router.push({ pathname: '/scan-result', params: { photoUri: uri } });
-      }, 2000);
+      analyzePhoto(uri);
     } else {
       console.log('[Scan] Image picker cancelled');
     }
@@ -104,12 +197,7 @@ export default function ScanScreen() {
         return;
       }
       console.log('[Scan] Photo captured:', photo.uri);
-      setCapturedUri(photo.uri);
-      setScreenState('analyzing');
-      setTimeout(() => {
-        console.log('[Scan] Navigating to scan-result with captured photo');
-        router.push({ pathname: '/scan-result', params: { photoUri: photo.uri } });
-      }, 2000);
+      analyzePhoto(photo.uri);
     } catch (err) {
       console.log('[Scan] Error taking picture:', err);
     }
