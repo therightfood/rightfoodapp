@@ -20,8 +20,6 @@ import Slider from '@react-native-community/slider';
 import { COLORS } from '@/constants/Colors';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { authClient } from '@/lib/auth';
-import ViewShot from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
 
 const BACKEND_URL = 'https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev';
 
@@ -32,110 +30,6 @@ function resolveImageSource(
   if (typeof source === 'string') return { uri: source };
   return source as ImageSourcePropType;
 }
-
-// ─── ShareCard ────────────────────────────────────────────────────────────────
-
-interface ShareCardProps {
-  photoUri: string;
-  dishName: string;
-  portionPct: number;
-  isConfirmed: boolean;
-}
-
-function ShareCard({ photoUri, dishName, portionPct, isConfirmed }: ShareCardProps) {
-  const portionText = isConfirmed
-    ? `I ate ${portionPct}% of this`
-    : `Right Food suggested ${portionPct}%`;
-
-  return (
-    <View style={shareCardStyles.container}>
-      <Image
-        source={{ uri: photoUri }}
-        style={shareCardStyles.photo}
-        resizeMode="cover"
-      />
-      <View style={shareCardStyles.content}>
-        <Text style={shareCardStyles.dishName} numberOfLines={2}>
-          {dishName}
-        </Text>
-        <Text style={shareCardStyles.portionText}>
-          {portionText}
-        </Text>
-        <View style={shareCardStyles.divider} />
-        <View style={shareCardStyles.footer}>
-          <View style={shareCardStyles.logoRow}>
-            <View style={shareCardStyles.logoLeaf} />
-            <Text style={shareCardStyles.logoText}>Right Food</Text>
-          </View>
-          <Text style={shareCardStyles.urlText}>right.food</Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-const shareCardStyles = StyleSheet.create({
-  container: {
-    width: 320,
-    backgroundColor: '#FAFAF8',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E8E6E0',
-  },
-  photo: {
-    width: 320,
-    height: 200,
-  },
-  content: {
-    padding: 20,
-  },
-  dishName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    letterSpacing: -0.2,
-    marginBottom: 8,
-  },
-  portionText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#4A7C59',
-    letterSpacing: -0.5,
-    marginBottom: 16,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#E8E6E0',
-    marginBottom: 14,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  logoLeaf: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#4A7C59',
-  },
-  logoText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#4A7C59',
-    letterSpacing: -0.1,
-  },
-  urlText: {
-    fontSize: 12,
-    color: '#7A6A5A',
-  },
-});
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -188,7 +82,6 @@ export default function ScanResultScreen() {
   const [confirmState, setConfirmState] = useState<'idle' | 'loading' | 'confirmed'>('idle');
 
   // ─── Share state ──────────────────────────────────────────────────────────────
-  const shareCardRef = useRef<ViewShot>(null);
   const [isSharing, setIsSharing] = useState(false);
 
   const barWidth = useRef(new Animated.Value(initialPortion)).current;
@@ -277,26 +170,18 @@ export default function ScanResultScreen() {
     console.log('[ScanResult] Share button pressed', { analysisId: params.analysisId, sliderValue });
     setIsSharing(true);
     try {
-      const uri = await shareCardRef.current?.capture?.();
-      if (!uri) throw new Error('Could not capture share card');
-      console.log('[ScanResult] Share card captured, uri:', uri);
+      const dishDisplay = params.dishName || 'my meal';
+      const portionDisplay = confirmState === 'confirmed'
+        ? `I ate ${sliderValue}% of this`
+        : `Right Food suggested ${sliderValue}%`;
 
-      const shareText = 'Check out Right Food — a free meal companion for GLP-1 users. right.food';
+      const shareMessage = `${portionDisplay} — ${dishDisplay}\n\nCheck out Right Food — a free meal companion for GLP-1 users. right.food`;
 
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        console.log('[ScanResult] Using expo-sharing');
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: shareText,
-        });
-      } else {
-        console.log('[ScanResult] Falling back to RN Share');
-        await Share.share({
-          message: shareText,
-          url: uri,
-        });
-      }
+      console.log('[ScanResult] Sharing via RN Share API');
+      await Share.share({
+        message: shareMessage,
+        url: params.photoUri || undefined,
+      });
 
       if (params.analysisId) {
         console.log('[ScanResult] PATCH /api/scan/analyses/:id/share — marking as shared');
@@ -462,20 +347,6 @@ export default function ScanResultScreen() {
   // ─── Success state ────────────────────────────────────────────────────────────
   return (
     <View style={styles.flex}>
-      {/* Off-screen share card for capture */}
-      <ViewShot
-        ref={shareCardRef}
-        options={{ format: 'png', quality: 1.0 }}
-        style={{ position: 'absolute', top: -1000, left: 0 }}
-      >
-        <ShareCard
-          photoUri={params.photoUri || ''}
-          dishName={params.dishName || 'My meal'}
-          portionPct={sliderValue}
-          isConfirmed={confirmState === 'confirmed'}
-        />
-      </ViewShot>
-
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.headerRow}>
           <AnimatedPressable style={styles.backButton} onPress={handleBack}>
