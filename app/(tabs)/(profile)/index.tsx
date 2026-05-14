@@ -112,8 +112,8 @@ function SkeletonBox({ width, height = 14, style }: { width: number | string; he
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.7, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
       ])
     );
     anim.start();
@@ -221,7 +221,9 @@ export default function ProfileScreen() {
 
   const handleToggleReminder = useCallback((value: boolean) => {
     console.log('[Profile] Reminder toggle pressed:', value);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (Platform.OS !== 'web') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
     setReminderEnabled(value);
     saveReminders(value, reminderTimes);
   }, [reminderTimes, saveReminders]);
@@ -229,7 +231,9 @@ export default function ProfileScreen() {
   const handleAddReminderSlot = useCallback(() => {
     console.log('[Profile] Add reminder slot pressed');
     if (reminderTimes.length >= 3) return;
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (Platform.OS !== 'web') {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    }
     const newTimes = [...reminderTimes, '12:00'];
     setReminderTimes(newTimes);
     saveReminders(reminderEnabled, newTimes);
