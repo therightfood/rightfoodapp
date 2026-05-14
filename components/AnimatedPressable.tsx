@@ -36,6 +36,11 @@ export function AnimatedPressable({
     }).start();
   }, []);
 
+  // Filter out internal props (e.g. __s, __sourceLocation from Reanimated/dev tools) that must not reach DOM elements on web
+  const safeProps = Platform.OS === 'web'
+    ? Object.fromEntries(Object.entries(props).filter(([key]) => !key.startsWith('__') && !key.startsWith('data-')))
+    : props;
+
   return (
     <Animated.View style={[{ transform: [{ scale }] }, disabled && { opacity: 0.5 }]}>
       <Pressable
@@ -44,7 +49,7 @@ export function AnimatedPressable({
         onPress={onPress}
         disabled={disabled}
         style={style}
-        {...props}
+        {...safeProps}
       >
         {children}
       </Pressable>
