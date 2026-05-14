@@ -42,18 +42,21 @@ export function IconSymbol({
   testID?: any;
   accessibilityLabel?: any;
 }) {
+  const extraProps: Record<string, any> = {};
+  if (onPress !== undefined) extraProps.onPress = onPress;
+  if (onClick !== undefined) extraProps.onClick = onClick;
+  if (onMouseOver !== undefined) extraProps.onMouseOver = onMouseOver;
+  if (onMouseLeave !== undefined) extraProps.onMouseLeave = onMouseLeave;
+  if (testID !== undefined) extraProps.testID = testID;
+  if (accessibilityLabel !== undefined) extraProps.accessibilityLabel = accessibilityLabel;
+
   return (
     <MaterialIcons
-      onPress={onPress}
-      onClick={onClick}
-      onMouseOver={onMouseOver}
-      onMouseLeave={onMouseLeave}
-      testID={testID}
-      accessibilityLabel={accessibilityLabel}
       color={color}
       size={size}
       name={android_material_icon_name}
       style={style as StyleProp<TextStyle>}
+      {...extraProps}
     />
   );
 }
