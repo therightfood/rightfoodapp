@@ -121,6 +121,9 @@ export default function RootLayout() {
                   <Stack.Screen name="auth-popup" options={{ headerShown: false }} />
                   <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
                   <Stack.Screen name="scan-result" options={{ headerShown: false }} />
+                  <Stack.Screen name="medical-disclaimer" options={{ title: 'Medical Disclaimer', headerBackTitle: 'Profile', headerStyle: { backgroundColor: '#FAFAF8' }, headerTintColor: '#4A7C59' }} />
+                  <Stack.Screen name="privacy-policy" options={{ title: 'Privacy Policy', headerBackTitle: 'Profile', headerStyle: { backgroundColor: '#FAFAF8' }, headerTintColor: '#4A7C59' }} />
+                  <Stack.Screen name="terms-of-service" options={{ title: 'Terms of Service', headerBackTitle: 'Profile', headerStyle: { backgroundColor: '#FAFAF8' }, headerTintColor: '#4A7C59' }} />
                 </Stack>
                 <NotificationPrimingModal />
                 <SystemBars style={"auto"} />

@@ -8,7 +8,6 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  Linking,
   Platform,
   Animated,
   LayoutAnimation,
@@ -45,9 +44,6 @@ const MEDICATION_DOSES: Record<string, string[]> = {
   mounjaro: ['2.5mg', '5mg', '7.5mg', '10mg', '12.5mg', '15mg'],
   zepbound: ['2.5mg', '5mg', '7.5mg', '10mg', '12.5mg', '15mg'],
 };
-
-const DISCLAIMER_TEXT =
-  'Right Food is a personal wellness tool. It is not medical advice, a medical device, or a substitute for your prescriber\'s guidance. Always follow your doctor\'s instructions for your medication.';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,7 +157,7 @@ export default function ProfileScreen() {
 
   // Modals
   const [showMedModal, setShowMedModal] = useState(false);
-  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -567,7 +563,7 @@ export default function ProfileScreen() {
             <AnimatedPressable
               onPress={() => {
                 console.log('[Profile] Privacy Policy pressed');
-                Linking.openURL('https://right.food/privacy');
+                router.push('/privacy-policy');
               }}
               style={styles.accountRow}
             >
@@ -580,7 +576,7 @@ export default function ProfileScreen() {
             <AnimatedPressable
               onPress={() => {
                 console.log('[Profile] Terms of Service pressed');
-                Linking.openURL('https://right.food/terms');
+                router.push('/terms-of-service');
               }}
               style={styles.accountRow}
             >
@@ -593,7 +589,7 @@ export default function ProfileScreen() {
             <AnimatedPressable
               onPress={() => {
                 console.log('[Profile] Medical Disclaimer pressed');
-                setShowDisclaimerModal(true);
+                router.push('/medical-disclaimer');
               }}
               style={styles.accountRow}
             >
@@ -791,33 +787,6 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* ── Medical Disclaimer Modal ── */}
-      <Modal
-        visible={showDisclaimerModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowDisclaimerModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHandle} />
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Medical Disclaimer</Text>
-            <AnimatedPressable
-              onPress={() => {
-                console.log('[Profile] Close disclaimer modal pressed');
-                setShowDisclaimerModal(false);
-              }}
-              style={styles.modalCloseBtn}
-              accessibilityLabel="Close modal"
-            >
-              <X size={20} color={COLORS.textSecondary} strokeWidth={2} />
-            </AnimatedPressable>
-          </View>
-          <View style={styles.disclaimerBody}>
-            <Text style={styles.disclaimerText}>{DISCLAIMER_TEXT}</Text>
-          </View>
-        </View>
-      </Modal>
 
       {/* ── Sign Out Confirmation Modal ── */}
       <Modal
@@ -1320,17 +1289,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-
-  // Disclaimer modal
-  disclaimerBody: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-  },
-  disclaimerText: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    lineHeight: 24,
   },
 
   // Confirm modals (sign out / delete)
