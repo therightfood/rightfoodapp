@@ -86,7 +86,7 @@ export default function FloatingTabBar({
         damping: 20,
         stiffness: 120,
         mass: 1,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start();
     }
   }, [activeTabIndex, animatedValue]);
