@@ -74,6 +74,8 @@ export default function RootLayout() {
         console.error('[OneSignal] Failed to set up click handler:', err);
       }
     })();
+    // router is stable from expo-router — intentionally omitted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const CustomDefaultTheme: Theme = {

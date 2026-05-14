@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import BodyScrollView from '@/components/BodyScrollView';
+import { BodyScrollView } from '@/components/BodyScrollView';
 
 const SUMMARY_TEXT =
   "We collect your email, medication data, meal photos, and usage data to provide and improve the app. We do not sell your data. Meal photos are stored securely and only used for analysis. You can delete your account and all data at any time from the Profile screen.";

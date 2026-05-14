@@ -217,6 +217,8 @@ export default function ScanResultScreen() {
     return () => {
       countAnim.removeListener(listenerId);
     };
+    // All deps are stable Animated.Value refs or mount-only values — intentionally omitted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Derived nutrition values ─────────────────────────────────────────────────

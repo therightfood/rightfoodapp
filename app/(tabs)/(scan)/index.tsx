@@ -68,6 +68,8 @@ function AnalyzingDots() {
       a2.stop();
       a3.stop();
     };
+    // dot1/dot2/dot3 are stable Animated.Value refs — no need in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -135,6 +137,8 @@ export default function ScanScreen() {
       });
     }, 2000);
     return () => clearInterval(interval);
+    // msgOpacity is a stable Animated.Value ref — no need in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenState]);
 
   const handleSettings = () => {

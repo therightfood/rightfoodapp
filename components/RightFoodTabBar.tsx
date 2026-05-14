@@ -38,6 +38,8 @@ function TabItem({
       duration: 200,
       useNativeDriver: true,
     }).start();
+    // dotOpacity is a stable Animated.Value ref — no need in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
   const handlePress = () => {

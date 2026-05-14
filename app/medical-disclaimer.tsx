@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import BodyScrollView from '@/components/BodyScrollView';
+import { BodyScrollView } from '@/components/BodyScrollView';
 
 const BODY_TEXT =
   "Right Food is a personal wellness tool designed to help GLP-1 medication users understand portion sizes. It is not a medical device, does not provide medical advice, and is not intended to diagnose, treat, cure, or prevent any disease or health condition. Always follow your prescriber's guidance for your medication, dosing, and dietary needs. Right Food is not affiliated with Novo Nordisk or Eli Lilly.";

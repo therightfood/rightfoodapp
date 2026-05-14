@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import BodyScrollView from '@/components/BodyScrollView';
+import { BodyScrollView } from '@/components/BodyScrollView';
 
 const SUMMARY_TEXT =
   "By using Right Food, you agree to use the app for personal wellness purposes only. Right Food is not a medical device and does not provide medical advice. You are responsible for following your prescriber's guidance. We may update these terms from time to time.";
