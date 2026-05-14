@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff, AlertCircle } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
@@ -86,6 +86,11 @@ export default function SignInScreen() {
     setShowPassword((prev) => !prev);
   };
 
+  const emailBorderColor = emailError ? COLORS.danger : emailFocused ? '#4A7C59' : '#E8E6E0';
+  const emailBorderWidth = emailFocused ? 1.5 : 1;
+  const passwordBorderColor = passwordFocused ? '#4A7C59' : '#E8E6E0';
+  const passwordBorderWidth = passwordFocused ? 1.5 : 1;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -110,6 +115,7 @@ export default function SignInScreen() {
           {/* General error banner */}
           {generalError ? (
             <View style={styles.errorBanner}>
+              <AlertCircle size={16} color="#C0392B" />
               <Text style={styles.errorBannerText}>{generalError}</Text>
             </View>
           ) : null}
@@ -118,12 +124,11 @@ export default function SignInScreen() {
           <View style={styles.form}>
             {/* Email */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email address</Text>
+              <Text style={styles.label}>EMAIL ADDRESS</Text>
               <TextInput
                 style={[
                   styles.input,
-                  emailFocused && styles.inputFocused,
-                  emailError ? styles.inputError : null,
+                  { borderColor: emailBorderColor, borderWidth: emailBorderWidth },
                 ]}
                 value={email}
                 onChangeText={(v) => {
@@ -144,20 +149,25 @@ export default function SignInScreen() {
                 placeholder="e.g. you@email.com"
                 placeholderTextColor={COLORS.textTertiary}
               />
-              {emailError ? <Text style={styles.fieldError}>{emailError}</Text> : null}
+              {emailError ? (
+                <View style={styles.fieldErrorRow}>
+                  <AlertCircle size={13} color={COLORS.danger} />
+                  <Text style={styles.fieldError}>{emailError}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Password */}
             <View style={styles.fieldGroup}>
               <View style={styles.passwordLabelRow}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={styles.label}>PASSWORD</Text>
                 <AnimatedPressable onPress={handleForgotPassword}>
                   <Text style={styles.forgotLink}>Forgot password?</Text>
                 </AnimatedPressable>
               </View>
               <View style={[
                 styles.inputWrapper,
-                passwordFocused && styles.inputFocused,
+                { borderColor: passwordBorderColor, borderWidth: passwordBorderWidth },
               ]}>
                 <TextInput
                   ref={passwordRef}
@@ -186,7 +196,7 @@ export default function SignInScreen() {
           <AnimatedPressable
             onPress={handleSubmit}
             disabled={isLoading}
-            style={styles.submitButton}
+            style={[styles.submitButton, isLoading && { opacity: 0.7 }]}
           >
             {isLoading
               ? <ActivityIndicator color="#FFFFFF" size="small" />
@@ -197,7 +207,7 @@ export default function SignInScreen() {
           {/* Bottom link */}
           <View style={styles.bottomRow}>
             <Text style={styles.bottomText}>Don't have an account?</Text>
-            <AnimatedPressable onPress={handleSignUp}>
+            <AnimatedPressable onPress={handleSignUp} style={styles.bottomLinkButton}>
               <Text style={styles.bottomLink}> Get started</Text>
             </AnimatedPressable>
           </View>
@@ -225,27 +235,31 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     color: COLORS.text,
     marginTop: 32,
     letterSpacing: -0.3,
   },
   subtitle: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
+    fontSize: 16,
+    color: '#7A6A5A',
     marginTop: 8,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   errorBanner: {
-    backgroundColor: COLORS.dangerMuted,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(192, 57, 43, 0.08)',
+    borderRadius: 10,
     padding: 12,
     marginTop: 20,
   },
   errorBannerText: {
+    flex: 1,
     fontSize: 14,
-    color: COLORS.danger,
+    color: '#C0392B',
     lineHeight: 20,
   },
   form: {
@@ -261,9 +275,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7A6A5A',
+    letterSpacing: 0.3,
+    marginBottom: 6,
   },
   forgotLink: {
     fontSize: 13,
@@ -271,54 +287,50 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   input: {
-    backgroundColor: COLORS.surfaceSecondary,
+    backgroundColor: '#F5F3EF',
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 16,
     color: COLORS.text,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surfaceSecondary,
+    backgroundColor: '#F5F3EF',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
   },
   inputInner: {
     flex: 1,
-    paddingVertical: 14,
-    fontSize: 15,
+    paddingVertical: 16,
+    fontSize: 16,
     color: COLORS.text,
-  },
-  inputFocused: {
-    borderColor: COLORS.primary,
-  },
-  inputError: {
-    borderColor: COLORS.danger,
   },
   eyeButton: {
     padding: 4,
   },
+  fieldErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
   fieldError: {
     fontSize: 13,
     color: COLORS.danger,
-    marginTop: 2,
   },
   submitButton: {
-    height: 52,
+    height: 56,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 24,
-  },
+    boxShadow: '0 4px 16px rgba(74, 124, 89, 0.20)',
+  } as any,
   submitButtonText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -326,15 +338,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
+    paddingVertical: 16,
   },
   bottomText: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.textSecondary,
   },
+  bottomLinkButton: {
+    paddingVertical: 4,
+  },
   bottomLink: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#4A7C59',
   },
 });

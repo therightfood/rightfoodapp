@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { ChevronRight, BookOpen, AlertCircle, Camera, Share2 } from 'lucide-react-native';
+import { ChevronRight, AlertCircle, Camera, Share2, UtensilsCrossed } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { apiGet } from '@/utils/api';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
@@ -274,11 +274,11 @@ export default function JourneyScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.centerFlex}>
           <View style={styles.emptyIconCircle}>
-            <BookOpen size={40} color={COLORS.primary} strokeWidth={1.5} />
+            <UtensilsCrossed size={40} color="#4A7C59" strokeWidth={1.5} />
           </View>
-          <Text style={styles.emptyTitle}>No meals yet</Text>
+          <Text style={styles.emptyTitle}>Your journey starts with one meal.</Text>
           <Text style={styles.emptySubtitle}>
-            Scan your first meal to start tracking your journey
+            Scan something you're about to eat.
           </Text>
           <AnimatedPressable style={styles.scanButton} onPress={handleScanPress}>
             <Text style={styles.scanButtonText}>Scan a meal</Text>
@@ -306,6 +306,7 @@ export default function JourneyScreen() {
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderText}>{section.title}</Text>
+            <View style={styles.sectionHeaderLine} />
           </View>
         )}
         ListHeaderComponent={
@@ -353,52 +354,80 @@ function JourneyHeader({
   const todayCalories = Math.round(summary.today_calories);
   const todayProtein = Math.round(summary.today_protein_g);
   const todayMealCount = summary.today_meal_count;
-  const weekAvgCalories = Math.round(summary.week_avg_daily_calories);
-  const weekAvgProtein = Math.round(summary.week_avg_daily_protein_g);
-  const weekMealCount = summary.week_meal_count;
-  const mealLabel = todayMealCount === 1 ? 'meal' : 'meals';
+
+  // Animated tab indicator
+  const tabIndicatorX = useRef(new Animated.Value(0)).current;
+
+  const handleTabPress = useCallback((tab: 'week' | 'alltime') => {
+    Animated.spring(tabIndicatorX, {
+      toValue: tab === 'week' ? 0 : 1,
+      useNativeDriver: Platform.OS !== 'web',
+      tension: 180,
+      friction: 18,
+    }).start();
+    onTabChange(tab);
+  }, [onTabChange, tabIndicatorX]);
 
   return (
     <View>
       <View style={styles.titleRow}>
         <Text style={styles.screenTitle}>My Journey</Text>
       </View>
+
+      {/* Summary card — 3 metric blocks */}
       <View style={styles.summaryCard}>
-        <View style={styles.summaryLeft}>
-          <Text style={styles.summaryLabel}>TODAY</Text>
-          <View style={styles.statRow}>
-            <Text style={styles.statValue}>{todayCalories}</Text>
-            <Text style={styles.statUnit}> kcal</Text>
-          </View>
-          <Text style={styles.statSub}>
-            {todayProtein}g protein · {todayMealCount} {mealLabel}
-          </Text>
+        <View style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{todayCalories}</Text>
+          <Text style={styles.metricLabel}>TODAY'S KCAL</Text>
         </View>
-        <View style={styles.summaryRight}>
-          <Text style={styles.summaryLabel}>THIS WEEK</Text>
-          <View style={styles.statRow}>
-            <Text style={styles.statValue}>{weekAvgCalories}</Text>
-            <Text style={styles.statUnit}> avg/day</Text>
-          </View>
-          <Text style={styles.statSub}>
-            {weekAvgProtein}g protein · {weekMealCount} meals
-          </Text>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{todayProtein}</Text>
+          <Text style={styles.metricLabel}>TODAY'S PROTEIN</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metricBlock}>
+          <Text style={styles.metricValue}>{todayMealCount}</Text>
+          <Text style={styles.metricLabel}>TODAY'S MEALS</Text>
         </View>
       </View>
 
-      {/* Tab switcher */}
+      {/* Tab switcher with animated indicator */}
       <View style={styles.tabSwitcher}>
+        {Platform.OS !== 'web' && (
+          <Animated.View
+            style={[
+              styles.tabIndicator,
+              {
+                transform: [
+                  {
+                    translateX: tabIndicatorX.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 160],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        )}
+        {Platform.OS === 'web' && activeTab === 'week' && (
+          <View style={[styles.tabIndicator, { transform: [{ translateX: 0 }] }]} />
+        )}
+        {Platform.OS === 'web' && activeTab === 'alltime' && (
+          <View style={[styles.tabIndicator, { transform: [{ translateX: 160 }] }]} />
+        )}
         <AnimatedPressable
-          style={[styles.tabButton, activeTab === 'week' && styles.tabButtonActive]}
-          onPress={() => onTabChange('week')}
+          style={styles.tabButton}
+          onPress={() => handleTabPress('week')}
         >
           <Text style={[styles.tabButtonText, activeTab === 'week' && styles.tabButtonTextActive]}>
             This Week
           </Text>
         </AnimatedPressable>
         <AnimatedPressable
-          style={[styles.tabButton, activeTab === 'alltime' && styles.tabButtonActive]}
-          onPress={() => onTabChange('alltime')}
+          style={styles.tabButton}
+          onPress={() => handleTabPress('alltime')}
         >
           <Text style={[styles.tabButtonText, activeTab === 'alltime' && styles.tabButtonTextActive]}>
             All Time
@@ -437,15 +466,14 @@ function NutritionDashboard({
   const calorieTarget = tdee?.calorie_target ?? 1500;
   const proteinTarget = tdee?.protein_target ?? 84;
   const maxCalories = Math.max(...dailyBreakdown.map(d => d.calories), calorieTarget, 1);
+  const targetsText = `Daily: ${calorieTarget} kcal · Protein: ${proteinTarget}g`;
 
   return (
     <View style={styles.dashboardContainer}>
       {/* Targets row */}
       <View style={styles.targetsRow}>
         <Text style={styles.targetsLabel}>Your targets</Text>
-        <Text style={styles.targetsValue}>
-          Daily: {calorieTarget} kcal  ·  Protein: {proteinTarget}g
-        </Text>
+        <Text style={styles.targetsValue}>{targetsText}</Text>
       </View>
 
       {/* Bar chart */}
@@ -457,7 +485,7 @@ function NutritionDashboard({
         />
       </View>
 
-      {/* Macro cards 2x2 grid */}
+      {/* Macro 2x2 grid — simple stat blocks */}
       {weekMacros && (
         <View style={styles.macroGrid}>
           <MacroCard label="Avg Daily Calories" value={weekMacros.avg_daily_calories} unit="kcal" />
@@ -557,10 +585,13 @@ function MealRow({ meal, isFirst, isLast, onPress }: MealRowProps) {
   const isOverPortion =
     meal.actual_portion_pct !== null &&
     meal.actual_portion_pct > meal.portion_suggestion_pct;
-  const dotColor = isOverPortion ? COLORS.accent : COLORS.primary;
+
+  const borderLeftColor = isOverPortion ? '#C8933A' : '#4A7C59';
+  const metaText = `${timeString} · Ate ${portionPct}%`;
 
   const rowStyle = [
     styles.mealRow,
+    { borderLeftColor },
     isFirst && styles.mealRowFirst,
     isLast && styles.mealRowLast,
     !isLast && styles.mealRowDivider,
@@ -585,15 +616,9 @@ function MealRow({ meal, isFirst, isLast, onPress }: MealRowProps) {
       </View>
 
       <View style={styles.mealContent}>
-        <View style={styles.mealRow1}>
-          <Text style={styles.mealName} numberOfLines={1}>{dishName}</Text>
-          <Text style={styles.mealTime}>{timeString}</Text>
-        </View>
-        <View style={styles.mealRow2}>
-          <View style={[styles.portionDot, { backgroundColor: dotColor }]} />
-          <Text style={styles.mealMeta}>Ate {portionPct}%</Text>
-          <Text style={styles.mealSep}>·</Text>
-          <Text style={styles.mealMeta}>{calories} kcal</Text>
+        <Text style={styles.mealName} numberOfLines={1}>{dishName}</Text>
+        <View style={styles.mealMetaRow}>
+          <Text style={styles.mealMeta}>{metaText}</Text>
           {meal.shared_at && (
             <View style={styles.sharedBadge}>
               <Share2 size={9} color={COLORS.primary} strokeWidth={2.5} />
@@ -601,6 +626,11 @@ function MealRow({ meal, isFirst, isLast, onPress }: MealRowProps) {
             </View>
           )}
         </View>
+      </View>
+
+      <View style={styles.mealRight}>
+        <Text style={styles.mealCalories}>{calories}</Text>
+        <Text style={styles.mealCalUnit}>kcal</Text>
       </View>
 
       <ChevronRight size={16} color={COLORS.textTertiary} />
@@ -672,7 +702,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.primaryMuted,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -681,10 +711,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
     marginTop: 16,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 260,
@@ -693,7 +724,7 @@ const styles = StyleSheet.create({
   scanButton: {
     height: 52,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 32,
     justifyContent: 'center',
     alignItems: 'center',
@@ -722,81 +753,80 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     letterSpacing: -0.3,
   },
+
+  // Summary card — 3 metric blocks
   summaryCard: {
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
+    borderColor: '#E8E6E0',
+    padding: 20,
     flexDirection: 'row',
+    alignItems: 'center',
   },
-  summaryLeft: {
+  metricBlock: {
     flex: 1,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.divider,
-    paddingRight: 16,
+    alignItems: 'center',
   },
-  summaryRight: {
-    flex: 1,
-    paddingLeft: 16,
-  },
-  summaryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  statValue: {
-    fontSize: 22,
+  metricValue: {
+    fontSize: 28,
     fontWeight: '700',
     color: COLORS.text,
+    fontVariant: ['tabular-nums'],
   },
-  statUnit: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    alignSelf: 'flex-end',
-    marginBottom: 2,
-    marginLeft: 3,
-  },
-  statSub: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7A6A5A',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     marginTop: 4,
+    textAlign: 'center',
+  },
+  metricDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E8E6E0',
   },
 
   // Section header
   sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 8,
     backgroundColor: COLORS.background,
   },
   sectionHeaderText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+  },
+  sectionHeaderLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E8E6E0',
+    marginLeft: 10,
   },
 
   // Meal row
   mealRow: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     backgroundColor: COLORS.surface,
     marginHorizontal: 16,
     marginBottom: 1,
+    minHeight: 72,
+    borderLeftWidth: 3,
   },
   mealRowFirst: {
     borderTopLeftRadius: 12,
@@ -814,18 +844,18 @@ const styles = StyleSheet.create({
 
   // Thumbnail
   thumbnail: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     borderRadius: 10,
     overflow: 'hidden',
   },
   thumbnailImage: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
   },
   thumbnailFallback: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     backgroundColor: COLORS.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -835,40 +865,33 @@ const styles = StyleSheet.create({
   mealContent: {
     flex: 1,
   },
-  mealRow1: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   mealName: {
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.text,
-    flex: 1,
-    marginRight: 8,
   },
-  mealTime: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-  },
-  mealRow2: {
+  mealMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginTop: 4,
   },
-  portionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
   mealMeta: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
   },
-  mealSep: {
-    fontSize: 13,
+  mealRight: {
+    alignItems: 'flex-end',
+  },
+  mealCalories: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  mealCalUnit: {
+    fontSize: 11,
     color: COLORS.textTertiary,
+    marginTop: 1,
   },
   sharedBadge: {
     flexDirection: 'row',
@@ -894,6 +917,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceSecondary,
     borderRadius: 10,
     padding: 3,
+    position: 'relative',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    top: 3,
+    left: 3,
+    width: '50%',
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: COLORS.surface,
   },
   tabButton: {
     flex: 1,
@@ -901,17 +934,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  tabButtonActive: {
-    backgroundColor: COLORS.surface,
+    zIndex: 1,
   },
   tabButtonText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
+    fontWeight: '400',
+    color: '#7A6A5A',
   },
   tabButtonTextActive: {
-    color: COLORS.text,
+    color: '#1A1A1A',
     fontWeight: '600',
   },
 
@@ -951,7 +982,7 @@ const styles = StyleSheet.create({
   },
   targetsValue: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
   },
   chartContainer: {
     marginTop: 4,
@@ -1009,7 +1040,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Macro grid
+  // Macro grid — simple stat blocks
   macroGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1019,11 +1050,9 @@ const styles = StyleSheet.create({
   macroCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    backgroundColor: '#F5F3EF',
+    borderRadius: 10,
     padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   macroValue: {
     fontSize: 22,

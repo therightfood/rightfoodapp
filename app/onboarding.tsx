@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Check, CheckCircle, Search } from 'lucide-react-native';
+import { Check, Search, UtensilsCrossed } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
 import { apiPut } from '@/utils/api';
@@ -48,49 +48,89 @@ const COUNTRIES = [
   'Mexico', 'Argentina', 'India', 'South Africa', 'Nigeria', 'Kenya',
 ];
 
-// ─── Progress Bar ─────────────────────────────────────────────────────────────
+// ─── Animated Dots Progress ───────────────────────────────────────────────────
 
-function ProgressBar({ step }: { step: number }) {
-  const fillAnim = useRef(new Animated.Value((step / 4) * 100)).current;
+const DOT_SIZE = 8;
+const ACTIVE_DOT_WIDTH = 20;
+const DOT_GAP = 8;
+// offset of each dot center from the start of the row
+// dot 0 center: 0, dot 1 center: DOT_SIZE + DOT_GAP, etc.
+// active pill is centered on the active dot
+function getDotTranslateX(step: number): number {
+  // step is 1-indexed
+  const idx = step - 1;
+  return idx * (DOT_SIZE + DOT_GAP);
+}
+
+function ProgressDots({ step }: { step: number }) {
+  const translateX = useRef(new Animated.Value(getDotTranslateX(step))).current;
 
   useEffect(() => {
-    Animated.timing(fillAnim, {
-      toValue: (step / 4) * 100,
-      duration: 300,
-      useNativeDriver: false,
+    Animated.spring(translateX, {
+      toValue: getDotTranslateX(step),
+      useNativeDriver: Platform.OS !== 'web',
+      tension: 180,
+      friction: 18,
     }).start();
-  }, [step, fillAnim]);
-
-  const stepLabel = `Step ${step} of 4`;
-
-  const staticWidth = `${(step / 4) * 100}%`;
+  }, [step, translateX]);
 
   return (
-    <View style={styles.progressContainer}>
-      <View style={styles.progressTrack}>
-        {Platform.OS === 'web' ? (
-          <View
-            style={[
-              styles.progressFill,
-              { width: staticWidth as any },
-            ]}
-          />
-        ) : (
-          <Animated.View
-            style={[
-              styles.progressFill,
-              {
-                width: fillAnim.interpolate({
-                  inputRange: [0, 100],
-                  outputRange: ['0%', '100%'],
-                }),
-              },
-            ]}
-          />
-        )}
+    <View style={styles.dotsContainer}>
+      {/* Static grey dots */}
+      <View style={styles.dotsRow}>
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={styles.dot} />
+        ))}
       </View>
-      <Text style={styles.progressLabel}>{stepLabel}</Text>
+      {/* Active pill overlay */}
+      {Platform.OS === 'web' ? (
+        <View
+          style={[
+            styles.activePill,
+            { transform: [{ translateX: getDotTranslateX(step) }] },
+          ]}
+        />
+      ) : (
+        <Animated.View
+          style={[
+            styles.activePill,
+            { transform: [{ translateX }] },
+          ]}
+        />
+      )}
     </View>
+  );
+}
+
+// ─── Step entrance animation wrapper ─────────────────────────────────────────
+
+function StepEntrance({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 280,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+  }, [opacity, translateY]);
+
+  if (Platform.OS === 'web') {
+    return <View style={{ flex: 1 }}>{children}</View>;
+  }
+
+  return (
+    <Animated.View style={{ flex: 1, opacity, transform: [{ translateY }] }}>
+      {children}
+    </Animated.View>
   );
 }
 
@@ -122,6 +162,112 @@ function ContinueButton({
       ) : (
         <Text style={styles.continueButtonText}>{label}</Text>
       )}
+    </AnimatedPressable>
+  );
+}
+
+// ─── Animated Med Card ────────────────────────────────────────────────────────
+
+function MedCard({
+  med,
+  isSelected,
+  onPress,
+}: {
+  med: { id: string; name: string; drug: string };
+  isSelected: boolean;
+  onPress: () => void;
+}) {
+  const checkScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isSelected) {
+      Animated.spring(checkScale, {
+        toValue: 1,
+        useNativeDriver: Platform.OS !== 'web',
+        tension: 200,
+        friction: 14,
+      }).start();
+    } else {
+      Animated.spring(checkScale, {
+        toValue: 0,
+        useNativeDriver: Platform.OS !== 'web',
+        tension: 200,
+        friction: 14,
+      }).start();
+    }
+  }, [isSelected, checkScale]);
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      style={[styles.medCard, isSelected && styles.medCardSelected]}
+    >
+      <View style={styles.medCardInner}>
+        <View style={styles.medCardText}>
+          <Text style={styles.medCardName}>{med.name}</Text>
+          <Text style={styles.medCardDrug}>{med.drug}</Text>
+        </View>
+        {Platform.OS === 'web' ? (
+          isSelected ? (
+            <View style={styles.medCheckCircle}>
+              <Check size={12} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
+          ) : null
+        ) : (
+          <Animated.View style={[styles.medCheckCircle, { transform: [{ scale: checkScale }] }]}>
+            <Check size={12} color="#FFFFFF" strokeWidth={2.5} />
+          </Animated.View>
+        )}
+      </View>
+    </AnimatedPressable>
+  );
+}
+
+// ─── Animated Dose Chip ───────────────────────────────────────────────────────
+
+function DoseChip({
+  dose,
+  isSelected,
+  onPress,
+}: {
+  dose: string;
+  isSelected: boolean;
+  onPress: () => void;
+}) {
+  const scale = useRef(new Animated.Value(isSelected ? 1.05 : 1)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: isSelected ? 1.05 : 1,
+      useNativeDriver: Platform.OS !== 'web',
+      tension: 200,
+      friction: 14,
+    }).start();
+  }, [isSelected, scale]);
+
+  const chipStyle = [
+    styles.doseChip,
+    isSelected && styles.doseChipSelected,
+  ];
+
+  const textStyle = [
+    styles.doseChipText,
+    isSelected && styles.doseChipTextSelected,
+  ];
+
+  if (Platform.OS === 'web') {
+    return (
+      <AnimatedPressable onPress={onPress} style={chipStyle}>
+        <Text style={textStyle}>{dose}</Text>
+      </AnimatedPressable>
+    );
+  }
+
+  return (
+    <AnimatedPressable onPress={onPress} style={chipStyle}>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Text style={textStyle}>{dose}</Text>
+      </Animated.View>
     </AnimatedPressable>
   );
 }
@@ -231,70 +377,55 @@ function Step2({
   const currentDoses = selectedMed ? DOSES[selectedMed] : [];
   const canContinue = !!selectedMed && !!selectedDose;
 
+  const doseSection = selectedMed ? (
+    Platform.OS === 'web' ? (
+      <View style={[styles.dosePicker, { opacity: 1 }]}>
+        <Text style={styles.doseLabel}>Select your dose</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
+          {currentDoses.map((dose) => (
+            <DoseChip
+              key={dose}
+              dose={dose}
+              isSelected={selectedDose === dose}
+              onPress={() => handleSelectDose(dose)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    ) : (
+      <Animated.View style={[styles.dosePicker, { opacity: doseOpacity }]}>
+        <Text style={styles.doseLabel}>Select your dose</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
+          {currentDoses.map((dose) => (
+            <DoseChip
+              key={dose}
+              dose={dose}
+              isSelected={selectedDose === dose}
+              onPress={() => handleSelectDose(dose)}
+            />
+          ))}
+        </ScrollView>
+      </Animated.View>
+    )
+  ) : null;
+
   return (
     <View style={styles.stepContent}>
       <Text style={styles.stepTitle}>Your medication</Text>
       <Text style={styles.stepSubtitle}>Select your current GLP-1 medication</Text>
 
       <View style={styles.medCardList}>
-        {MEDICATIONS.map((med) => {
-          const isSelected = selectedMed === med.id;
-          return (
-            <AnimatedPressable
-              key={med.id}
-              onPress={() => handleSelectMed(med.id)}
-              style={[styles.medCard, isSelected && styles.medCardSelected]}
-            >
-              <Text style={styles.medCardName}>{med.name}</Text>
-              <Text style={styles.medCardDrug}>{med.drug}</Text>
-            </AnimatedPressable>
-          );
-        })}
+        {MEDICATIONS.map((med) => (
+          <MedCard
+            key={med.id}
+            med={med}
+            isSelected={selectedMed === med.id}
+            onPress={() => handleSelectMed(med.id)}
+          />
+        ))}
       </View>
 
-      {selectedMed && (
-        Platform.OS === 'web' ? (
-          <View style={[styles.dosePicker, { opacity: 1 }]}>
-            <Text style={styles.doseLabel}>Select your dose</Text>
-            <View style={styles.chipRow}>
-              {currentDoses.map((dose) => {
-                const isSelected = selectedDose === dose;
-                return (
-                  <AnimatedPressable
-                    key={dose}
-                    onPress={() => handleSelectDose(dose)}
-                    style={[styles.doseChip, isSelected && styles.doseChipSelected]}
-                  >
-                    <Text style={[styles.doseChipText, isSelected && styles.doseChipTextSelected]}>
-                      {dose}
-                    </Text>
-                  </AnimatedPressable>
-                );
-              })}
-            </View>
-          </View>
-        ) : (
-          <Animated.View style={[styles.dosePicker, { opacity: doseOpacity }]}>
-            <Text style={styles.doseLabel}>Select your dose</Text>
-            <View style={styles.chipRow}>
-              {currentDoses.map((dose) => {
-                const isSelected = selectedDose === dose;
-                return (
-                  <AnimatedPressable
-                    key={dose}
-                    onPress={() => handleSelectDose(dose)}
-                    style={[styles.doseChip, isSelected && styles.doseChipSelected]}
-                  >
-                    <Text style={[styles.doseChipText, isSelected && styles.doseChipTextSelected]}>
-                      {dose}
-                    </Text>
-                  </AnimatedPressable>
-                );
-              })}
-            </View>
-          </Animated.View>
-        )
-      )}
+      {doseSection}
 
       <View style={styles.buttonSpacer} />
       <ContinueButton onPress={handleContinue} disabled={!canContinue} loading={loading} />
@@ -644,7 +775,7 @@ function Step4({
     <View style={styles.step4Wrapper}>
       <View style={styles.step4Center}>
         <View style={styles.step4IconCircle}>
-          <CheckCircle size={40} color={COLORS.primary} strokeWidth={1.5} />
+          <UtensilsCrossed size={36} color="#FFFFFF" strokeWidth={1.5} />
         </View>
         <Text style={styles.step4Title}>You're all set</Text>
         <Text style={styles.step4Subtitle}>{subtitleText}</Text>
@@ -699,7 +830,7 @@ export default function OnboardingScreen() {
         keyboardVerticalOffset={0}
       >
         <View style={styles.headerArea}>
-          {step < 4 && <ProgressBar step={step} />}
+          {step < 4 && <ProgressDots step={step} />}
         </View>
 
         {Platform.OS === 'web' ? (
@@ -710,10 +841,12 @@ export default function OnboardingScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {step === 1 && <Step1 onNext={handleStep1Next} />}
-              {step === 2 && <Step2 onNext={handleStep2Next} />}
-              {step === 3 && <Step3 onNext={handleStep3Next} />}
-              {step === 4 && <Step4 medication={medication} dose={dose} />}
+              <StepEntrance key={step}>
+                {step === 1 && <Step1 onNext={handleStep1Next} />}
+                {step === 2 && <Step2 onNext={handleStep2Next} />}
+                {step === 3 && <Step3 onNext={handleStep3Next} />}
+                {step === 4 && <Step4 medication={medication} dose={dose} />}
+              </StepEntrance>
             </ScrollView>
           </View>
         ) : (
@@ -724,10 +857,12 @@ export default function OnboardingScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {step === 1 && <Step1 onNext={handleStep1Next} />}
-              {step === 2 && <Step2 onNext={handleStep2Next} />}
-              {step === 3 && <Step3 onNext={handleStep3Next} />}
-              {step === 4 && <Step4 medication={medication} dose={dose} />}
+              <StepEntrance key={step}>
+                {step === 1 && <Step1 onNext={handleStep1Next} />}
+                {step === 2 && <Step2 onNext={handleStep2Next} />}
+                {step === 3 && <Step3 onNext={handleStep3Next} />}
+                {step === 4 && <Step4 medication={medication} dose={dose} />}
+              </StepEntrance>
             </ScrollView>
           </Animated.View>
         )}
@@ -744,11 +879,13 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FAFAF8',
   },
   headerArea: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 20,
+    paddingBottom: 8,
+    alignItems: 'center',
   },
   scrollContent: {
     paddingHorizontal: 24,
@@ -756,25 +893,33 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // Progress bar
-  progressContainer: {
-    marginBottom: 4,
+  // Dots progress
+  dotsContainer: {
+    position: 'relative',
+    height: DOT_SIZE,
+    width: 4 * DOT_SIZE + 3 * DOT_GAP,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
-  progressTrack: {
-    height: 4,
-    backgroundColor: COLORS.surfaceSecondary,
-    borderRadius: 2,
-    overflow: 'hidden',
+  dotsRow: {
+    flexDirection: 'row',
+    gap: DOT_GAP,
+    alignItems: 'center',
   },
-  progressFill: {
-    height: 4,
-    backgroundColor: COLORS.primary,
-    borderRadius: 2,
+  dot: {
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: 4,
+    backgroundColor: '#E8E6E0',
   },
-  progressLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 8,
+  activePill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: ACTIVE_DOT_WIDTH,
+    height: DOT_SIZE,
+    borderRadius: 4,
+    backgroundColor: '#4A7C59',
   },
 
   // Step shared
@@ -783,25 +928,25 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   stepTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
     color: COLORS.text,
     letterSpacing: -0.3,
   },
   stepSubtitle: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    marginTop: 6,
-    lineHeight: 22,
+    fontSize: 16,
+    color: '#7A6A5A',
+    marginTop: 8,
+    lineHeight: 24,
   },
   buttonSpacer: {
     flex: 1,
     minHeight: 32,
   },
   continueButton: {
-    height: 52,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    height: 56,
+    backgroundColor: '#4A7C59',
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
@@ -817,16 +962,16 @@ const styles = StyleSheet.create({
 
   // Step 1
   disclaimerCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E8E6E0',
     marginTop: 24,
   },
   disclaimerText: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     lineHeight: 24,
   },
   checkboxRow: {
@@ -839,14 +984,14 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: COLORS.border,
+    borderColor: '#E8E6E0',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
   },
   checkboxChecked: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: '#4A7C59',
+    borderColor: '#4A7C59',
   },
   checkboxLabel: {
     fontSize: 15,
@@ -860,16 +1005,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   medCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E8E6E0',
+    minHeight: 72,
+    justifyContent: 'center',
   },
   medCardSelected: {
     borderWidth: 2,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryMuted,
+    borderColor: '#4A7C59',
+    backgroundColor: '#F0F5F1',
+  },
+  medCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  medCardText: {
+    flex: 1,
   },
   medCardName: {
     fontSize: 16,
@@ -878,8 +1033,17 @@ const styles = StyleSheet.create({
   },
   medCardDrug: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     marginTop: 2,
+  },
+  medCheckCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#4A7C59',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
   },
   dosePicker: {
     marginTop: 24,
@@ -887,8 +1051,12 @@ const styles = StyleSheet.create({
   doseLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     marginBottom: 10,
+  },
+  chipScrollContent: {
+    gap: 8,
+    paddingRight: 4,
   },
   chipRow: {
     flexDirection: 'row',
@@ -898,22 +1066,20 @@ const styles = StyleSheet.create({
   doseChip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: 999,
+    backgroundColor: '#F5F3EF',
   },
   doseChipSelected: {
-    backgroundColor: COLORS.primary,
-    borderWidth: 0,
+    backgroundColor: '#4A7C59',
   },
   doseChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.text,
+    color: '#7A6A5A',
   },
   doseChipTextSelected: {
     color: '#FFFFFF',
+    fontWeight: '600',
   },
 
   // Step 3
@@ -963,7 +1129,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceSecondary,
   },
   unitChipSelected: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#4A7C59',
   },
   unitChipText: {
     fontSize: 13,
@@ -987,13 +1153,13 @@ const styles = StyleSheet.create({
   genderChip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: COLORS.surfaceSecondary,
+    borderRadius: 999,
+    backgroundColor: '#F5F3EF',
   },
   genderChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
   },
   countryPicker: {
     height: 48,
@@ -1077,7 +1243,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.primaryMuted,
+    backgroundColor: '#4A7C59',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1091,7 +1257,7 @@ const styles = StyleSheet.create({
   },
   step4Subtitle: {
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     textAlign: 'center',
     marginTop: 12,
     maxWidth: 280,

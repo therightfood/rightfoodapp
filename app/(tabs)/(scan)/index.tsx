@@ -1,12 +1,13 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
   Image,
   Pressable,
   Linking,
+  Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -24,11 +25,73 @@ import {
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
 import { authClient } from '@/lib/auth';
+import * as Haptics from 'expo-haptics';
 
 const BACKEND_URL = 'https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev';
 
 type ScreenState = 'empty' | 'camera' | 'analyzing';
 type FlashState = 'off' | 'on';
+
+const ANALYZING_MESSAGES = [
+  'Reading your meal...',
+  'Identifying foods...',
+  'Calculating your portion...',
+  'Almost ready...',
+];
+
+// ─── Animated dots component ──────────────────────────────────────────────────
+function AnalyzingDots() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const pulse = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600 - delay),
+        ])
+      );
+
+    const a1 = pulse(dot1, 0);
+    const a2 = pulse(dot2, 200);
+    const a3 = pulse(dot3, 400);
+    a1.start();
+    a2.start();
+    a3.start();
+
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, []);
+
+  return (
+    <View style={dotStyles.row}>
+      <Animated.View style={[dotStyles.dot, { opacity: dot1 }]} />
+      <Animated.View style={[dotStyles.dot, { opacity: dot2 }]} />
+      <Animated.View style={[dotStyles.dot, { opacity: dot3 }]} />
+    </View>
+  );
+}
+
+const dotStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 20,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4A7C59',
+  },
+});
 
 export default function ScanScreen() {
   const [screenState, setScreenState] = useState<ScreenState>('empty');
@@ -36,6 +99,14 @@ export default function ScanScreen() {
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [showCameraPermDenied, setShowCameraPermDenied] = useState(false);
   const [showLibraryPermDenied, setShowLibraryPermDenied] = useState(false);
+
+  // Analyzing message cycling
+  const [analyzingMsgIndex, setAnalyzingMsgIndex] = useState(0);
+  const msgOpacity = useRef(new Animated.Value(1)).current;
+
+  // Shutter animation
+  const shutterScale = useRef(new Animated.Value(1)).current;
+  const flashOpacity = useRef(new Animated.Value(0)).current;
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -50,6 +121,21 @@ export default function ScanScreen() {
       setCapturedUri(null);
     }, [])
   );
+
+  // Cycle analyzing messages
+  useEffect(() => {
+    if (screenState !== 'analyzing') return;
+    setAnalyzingMsgIndex(0);
+    const interval = setInterval(() => {
+      // Fade out
+      Animated.timing(msgOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+        setAnalyzingMsgIndex((prev) => (prev + 1) % ANALYZING_MESSAGES.length);
+        // Fade in
+        Animated.timing(msgOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [screenState]);
 
   const handleSettings = () => {
     console.log('[Scan] Settings button pressed');
@@ -191,6 +277,24 @@ export default function ScanScreen() {
   const handleShutter = async () => {
     console.log('[Scan] Shutter button pressed');
     if (!cameraRef.current) return;
+
+    // Haptic feedback
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+    }
+
+    // Scale animation
+    Animated.sequence([
+      Animated.timing(shutterScale, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+      Animated.spring(shutterScale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 8 }),
+    ]).start();
+
+    // White flash
+    Animated.sequence([
+      Animated.timing(flashOpacity, { toValue: 1, duration: 50, useNativeDriver: true }),
+      Animated.timing(flashOpacity, { toValue: 0, duration: 100, useNativeDriver: true }),
+    ]).start();
+
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
       if (!photo) {
@@ -230,6 +334,8 @@ export default function ScanScreen() {
     setShowLibraryPermDenied(false);
   };
 
+  const analyzingMessage = ANALYZING_MESSAGES[analyzingMsgIndex];
+
   // ─── Camera state (edge-to-edge) ───────────────────────────────────────────
   if (screenState === 'camera') {
     const topBarPaddingTop = insets.top + 12;
@@ -250,6 +356,9 @@ export default function ScanScreen() {
           flash={flash}
         />
 
+        {/* Viewfinder framing guide */}
+        <View style={styles.viewfinderGuide} />
+
         {/* Top overlay */}
         <View style={[styles.cameraTopBar, { paddingTop: topBarPaddingTop }]}>
           <Text style={styles.cameraHintText}>Point at your meal</Text>
@@ -266,15 +375,23 @@ export default function ScanScreen() {
           </Pressable>
 
           {/* Shutter */}
-          <Pressable style={styles.shutterOuter} onPress={handleShutter}>
-            <View style={styles.shutterInner} />
-          </Pressable>
+          <Animated.View style={[styles.shutterOuter, { transform: [{ scale: shutterScale }] }]}>
+            <Pressable style={styles.shutterPressable} onPress={handleShutter}>
+              <View style={styles.shutterInner} />
+            </Pressable>
+          </Animated.View>
 
           {/* Flash toggle */}
           <Pressable style={styles.cameraRoundButton} onPress={handleFlashToggle}>
             {flashIcon}
           </Pressable>
         </View>
+
+        {/* White flash overlay */}
+        <Animated.View
+          style={[StyleSheet.absoluteFillObject, styles.flashOverlay, { opacity: flashOpacity }]}
+          pointerEvents="none"
+        />
       </View>
     );
   }
@@ -292,8 +409,10 @@ export default function ScanScreen() {
           />
         ) : null}
         <View style={styles.analyzingOverlay}>
-          <ActivityIndicator size="large" color="#4A7C59" />
-          <Text style={styles.analyzingText}>Analyzing your meal...</Text>
+          <AnalyzingDots />
+          <Animated.Text style={[styles.analyzingText, { opacity: msgOpacity }]}>
+            {analyzingMessage}
+          </Animated.Text>
         </View>
       </View>
     );
@@ -314,11 +433,11 @@ export default function ScanScreen() {
       {/* Center content */}
       <View style={styles.centerContent}>
         <View style={styles.iconCircle}>
-          <Camera size={44} color={COLORS.primary} strokeWidth={1.5} />
+          <Camera size={48} color={COLORS.primary} strokeWidth={1.5} />
         </View>
         <Text style={styles.title}>Scan your meal</Text>
         <Text style={styles.description}>
-          Take a photo and we'll tell you exactly how much to eat
+          Point your camera at any meal and we'll tell you exactly how much to eat
         </Text>
 
         <AnimatedPressable style={styles.primaryButton} onPress={handleTakePhoto}>
@@ -330,10 +449,10 @@ export default function ScanScreen() {
         </AnimatedPressable>
       </View>
 
-      {/* Camera permission denied card */}
+      {/* Camera permission denied — bottom sheet */}
       {showCameraPermDenied ? (
         <View style={styles.permOverlay}>
-          <View style={styles.permCard}>
+          <View style={[styles.permSheet, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.permIconCircle}>
               <CameraOff size={40} color={COLORS.textSecondary} strokeWidth={1.5} />
             </View>
@@ -352,10 +471,10 @@ export default function ScanScreen() {
         </View>
       ) : null}
 
-      {/* Library permission denied card */}
+      {/* Library permission denied — bottom sheet */}
       {showLibraryPermDenied ? (
         <View style={styles.permOverlay}>
-          <View style={styles.permCard}>
+          <View style={[styles.permSheet, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.permIconCircle}>
               <Images size={40} color={COLORS.textSecondary} strokeWidth={1.5} />
             </View>
@@ -418,9 +537,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   iconCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: COLORS.primaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
@@ -438,11 +557,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     lineHeight: 22,
-    maxWidth: 260,
+    maxWidth: 280,
   },
   primaryButton: {
     width: '100%',
-    height: 52,
+    height: 56,
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     justifyContent: 'center',
@@ -457,7 +576,8 @@ const styles = StyleSheet.create({
   secondaryButton: {
     width: '100%',
     height: 52,
-    backgroundColor: COLORS.primaryMuted,
+    borderWidth: 1,
+    borderColor: '#E8E6E0',
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
@@ -470,6 +590,18 @@ const styles = StyleSheet.create({
   },
 
   // Camera state
+  viewfinderGuide: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 240,
+    height: 240,
+    marginTop: -120,
+    marginLeft: -120,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderRadius: 16,
+  },
   cameraTopBar: {
     position: 'absolute',
     top: 0,
@@ -517,25 +649,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shutterOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+          elevation: 8,
+        }),
+  },
+  shutterPressable: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   shutterInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: 'rgba(0, 0, 0, 0.15)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4A7C59',
+  },
+  flashOverlay: {
+    backgroundColor: '#FFFFFF',
   },
 
   // Analyzing state
   analyzingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -546,23 +696,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
-  // Permission denied
+  // Permission denied — bottom sheets
   permOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
-  permCard: {
+  permSheet: {
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 24,
-    marginHorizontal: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 28,
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 360,
   },
   permIconCircle: {
     width: 72,
@@ -604,6 +750,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: 16,
+    paddingBottom: 4,
   },
 });

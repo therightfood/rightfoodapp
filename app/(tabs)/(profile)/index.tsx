@@ -21,6 +21,9 @@ import {
   LogOut,
   X,
   Plus,
+  TrendingUp,
+  Trash2,
+  Check,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
@@ -96,7 +99,6 @@ function formatDoseMg(doseMg: number | null): string {
   if (doseMg === null || doseMg === undefined) return '—';
   const num = Number(doseMg);
   if (isNaN(num)) return '—';
-  // Format: remove trailing zeros
   const str = num % 1 === 0 ? `${num}mg` : `${num}mg`;
   return str;
 }
@@ -136,6 +138,63 @@ function SectionLabel({ label }: { label: string }) {
   return <Text style={styles.sectionLabel}>{label}</Text>;
 }
 
+// ─── Animated Med Card (modal) ────────────────────────────────────────────────
+
+function ModalMedCard({
+  med,
+  isSelected,
+  onPress,
+}: {
+  med: { id: string; name: string; drug: string };
+  isSelected: boolean;
+  onPress: () => void;
+}) {
+  const checkScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isSelected) {
+      Animated.spring(checkScale, {
+        toValue: 1,
+        useNativeDriver: Platform.OS !== 'web',
+        tension: 200,
+        friction: 14,
+      }).start();
+    } else {
+      Animated.spring(checkScale, {
+        toValue: 0,
+        useNativeDriver: Platform.OS !== 'web',
+        tension: 200,
+        friction: 14,
+      }).start();
+    }
+  }, [isSelected, checkScale]);
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      style={[styles.medCard, isSelected && styles.medCardSelected]}
+    >
+      <View style={styles.medCardInner}>
+        <View style={styles.medCardTextBlock}>
+          <Text style={styles.medCardName}>{med.name}</Text>
+          <Text style={styles.medCardDrug}>{med.drug}</Text>
+        </View>
+        {Platform.OS === 'web' ? (
+          isSelected ? (
+            <View style={styles.medCheckCircle}>
+              <Check size={12} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
+          ) : null
+        ) : (
+          <Animated.View style={[styles.medCheckCircle, { transform: [{ scale: checkScale }] }]}>
+            <Check size={12} color="#FFFFFF" strokeWidth={2.5} />
+          </Animated.View>
+        )}
+      </View>
+    </AnimatedPressable>
+  );
+}
+
 // ─── Profile Screen ───────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
@@ -157,7 +216,6 @@ export default function ProfileScreen() {
 
   // Modals
   const [showMedModal, setShowMedModal] = useState(false);
-
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -372,12 +430,9 @@ export default function ProfileScreen() {
   const currentModalDoses = modalSelectedMed ? (MEDICATION_DOSES[modalSelectedMed] ?? []) : [];
   const canSaveMed = !!modalSelectedMed && !!modalSelectedDose;
 
-  const streakDisplay =
-    stats && stats.current_streak > 0
-      ? `${stats.current_streak} 🔥`
-      : stats
-      ? `${stats.current_streak}`
-      : '—';
+  const streakCount = stats?.current_streak ?? 0;
+  const streakHasValue = stats !== null && streakCount > 0;
+  const streakText = stats ? `${streakCount}` : '—';
 
   const deleteConfirmEnabled = deleteInput.toLowerCase() === 'delete';
 
@@ -468,10 +523,12 @@ export default function ProfileScreen() {
                     <SkeletonBox width={40} height={24} style={{ borderRadius: 4 }} />
                     <SkeletonBox width={72} height={12} style={{ marginTop: 8, borderRadius: 4 }} />
                   </View>
+                  <View style={styles.statDivider} />
                   <View style={styles.statItem}>
                     <SkeletonBox width={40} height={24} style={{ borderRadius: 4 }} />
                     <SkeletonBox width={60} height={12} style={{ marginTop: 8, borderRadius: 4 }} />
                   </View>
+                  <View style={styles.statDivider} />
                   <View style={styles.statItem}>
                     <SkeletonBox width={40} height={24} style={{ borderRadius: 4 }} />
                     <SkeletonBox width={64} height={12} style={{ marginTop: 8, borderRadius: 4 }} />
@@ -483,12 +540,19 @@ export default function ProfileScreen() {
                     <Text style={styles.statValue}>{stats?.total_meals_scanned ?? 0}</Text>
                     <Text style={styles.statLabel}>Meals scanned</Text>
                   </View>
+                  <View style={styles.statDivider} />
                   <View style={styles.statItem}>
                     <Text style={styles.statValue}>{stats?.days_using_app ?? 0}</Text>
                     <Text style={styles.statLabel}>Days active</Text>
                   </View>
+                  <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{streakDisplay}</Text>
+                    <View style={styles.streakRow}>
+                      <Text style={styles.statValue}>{streakText}</Text>
+                      {streakHasValue && (
+                        <TrendingUp size={14} color="#C8933A" strokeWidth={2} />
+                      )}
+                    </View>
                     <Text style={styles.statLabel}>Day streak</Text>
                   </View>
                 </>
@@ -621,6 +685,7 @@ export default function ProfileScreen() {
               style={styles.accountRow}
             >
               <Text style={styles.deleteRowText}>Delete account</Text>
+              <Trash2 size={16} color="#C0392B" strokeWidth={2} />
             </AnimatedPressable>
           </View>
         </View>
@@ -703,19 +768,14 @@ export default function ProfileScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.medCardList}>
-              {MEDICATIONS.map((med) => {
-                const isSelected = modalSelectedMed === med.id;
-                return (
-                  <AnimatedPressable
-                    key={med.id}
-                    onPress={() => handleModalSelectMed(med.id)}
-                    style={[styles.medCard, isSelected && styles.medCardSelected]}
-                  >
-                    <Text style={styles.medCardName}>{med.name}</Text>
-                    <Text style={styles.medCardDrug}>{med.drug}</Text>
-                  </AnimatedPressable>
-                );
-              })}
+              {MEDICATIONS.map((med) => (
+                <ModalMedCard
+                  key={med.id}
+                  med={med}
+                  isSelected={modalSelectedMed === med.id}
+                  onPress={() => handleModalSelectMed(med.id)}
+                />
+              ))}
             </View>
 
             {modalSelectedMed && (
@@ -914,11 +974,10 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     marginBottom: 8,
-    paddingHorizontal: 4,
   },
 
   // Cards
@@ -946,15 +1005,15 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarInitial: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -996,19 +1055,19 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
   },
   doseBadge: {
-    backgroundColor: COLORS.primaryMuted,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   doseBadgeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#4A7C59',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
+    backgroundColor: '#E8E6E0',
     marginHorizontal: 16,
   },
   updateRow: {
@@ -1026,10 +1085,17 @@ const styles = StyleSheet.create({
   // Stats
   statsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-around',
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E8E6E0',
   },
   statValue: {
     fontSize: 24,
@@ -1038,9 +1104,14 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     marginTop: 4,
     textAlign: 'center',
+  },
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
 
   // Reminders
@@ -1122,7 +1193,7 @@ const styles = StyleSheet.create({
   },
   rowDivider: {
     height: 1,
-    backgroundColor: COLORS.divider,
+    backgroundColor: '#E8E6E0',
   },
 
   // iOS time picker modal
@@ -1219,16 +1290,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   medCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E8E6E0',
+    minHeight: 72,
+    justifyContent: 'center',
   },
   medCardSelected: {
     borderWidth: 2,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryMuted,
+    borderColor: '#4A7C59',
+    backgroundColor: '#F0F5F1',
+  },
+  medCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  medCardTextBlock: {
+    flex: 1,
   },
   medCardName: {
     fontSize: 16,
@@ -1237,8 +1318,17 @@ const styles = StyleSheet.create({
   },
   medCardDrug: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     marginTop: 2,
+  },
+  medCheckCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#4A7C59',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
   },
   dosePicker: {
     marginTop: 24,
@@ -1257,27 +1347,25 @@ const styles = StyleSheet.create({
   doseChip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: 999,
+    backgroundColor: '#F5F3EF',
   },
   doseChipSelected: {
-    backgroundColor: COLORS.primary,
-    borderWidth: 0,
+    backgroundColor: '#4A7C59',
   },
   doseChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.text,
+    color: '#7A6A5A',
   },
   doseChipTextSelected: {
     color: '#FFFFFF',
+    fontWeight: '600',
   },
   saveBtn: {
     height: 52,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,

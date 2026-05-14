@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TextInput,
-  ActivityIndicator,
+  Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -33,6 +34,88 @@ interface Recipe {
   protein_g_per_serving: number;
   prep_time_minutes: number;
 }
+
+// ─── Pulsing Dots ─────────────────────────────────────────────────────────────
+
+function PulsingDots() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const makePulse = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600 - delay),
+        ])
+      );
+
+    const a1 = makePulse(dot1, 0);
+    const a2 = makePulse(dot2, 200);
+    const a3 = makePulse(dot3, 400);
+    a1.start();
+    a2.start();
+    a3.start();
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={pulseStyles.row}>
+        <View style={pulseStyles.dot} />
+        <View style={pulseStyles.dot} />
+        <View style={pulseStyles.dot} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={pulseStyles.row}>
+      <Animated.View style={[pulseStyles.dot, { opacity: dot1 }]} />
+      <Animated.View style={[pulseStyles.dot, { opacity: dot2 }]} />
+      <Animated.View style={[pulseStyles.dot, { opacity: dot3 }]} />
+    </View>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4A7C59' },
+});
+
+// ─── Single Pulsing Dot ───────────────────────────────────────────────────────
+
+function SinglePulsingDot() {
+  const opacity = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 400, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  if (Platform.OS === 'web') {
+    return <View style={singleDotStyles.dot} />;
+  }
+
+  return <Animated.View style={[singleDotStyles.dot, { opacity }]} />;
+}
+
+const singleDotStyles = StyleSheet.create({
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4A7C59' },
+});
 
 // ─── RecipeCard ───────────────────────────────────────────────────────────────
 
@@ -63,16 +146,16 @@ function RecipeCard({ recipe, expanded, onToggle, onScanMeal }: RecipeCardProps)
         <Text style={cardStyles.description}>{recipe.description}</Text>
 
         <View style={cardStyles.statsRow}>
-          <View style={cardStyles.stat}>
-            <Flame size={14} color={COLORS.accent} />
+          <View style={cardStyles.statPill}>
+            <Flame size={12} color={COLORS.accent} />
             <Text style={cardStyles.statText}>{caloriesText}</Text>
           </View>
-          <View style={cardStyles.stat}>
-            <Zap size={14} color={COLORS.primary} />
+          <View style={cardStyles.statPill}>
+            <Zap size={12} color={COLORS.primary} />
             <Text style={cardStyles.statText}>{proteinText}</Text>
           </View>
-          <View style={cardStyles.stat}>
-            <Clock size={14} color={COLORS.textSecondary} />
+          <View style={cardStyles.statPill}>
+            <Clock size={12} color="#7A6A5A" />
             <Text style={cardStyles.statText}>{prepText}</Text>
           </View>
         </View>
@@ -85,7 +168,7 @@ function RecipeCard({ recipe, expanded, onToggle, onScanMeal }: RecipeCardProps)
         </Text>
         <ChevronDown
           size={16}
-          color={COLORS.primary}
+          color="#4A7C59"
           style={{ transform: [{ rotate: chevronRotation }] }}
         />
       </AnimatedPressable>
@@ -106,14 +189,16 @@ function RecipeCard({ recipe, expanded, onToggle, onScanMeal }: RecipeCardProps)
             const stepNum = String(i + 1);
             return (
               <View key={i} style={cardStyles.stepRow}>
-                <Text style={cardStyles.stepNumber}>{stepNum}</Text>
+                <View style={cardStyles.stepNumCircle}>
+                  <Text style={cardStyles.stepNumber}>{stepNum}</Text>
+                </View>
                 <Text style={cardStyles.stepText}>{step}</Text>
               </View>
             );
           })}
 
           <AnimatedPressable onPress={onScanMeal} style={cardStyles.scanMealButton}>
-            <Camera size={14} color={COLORS.primary} />
+            <Camera size={14} color="#4A7C59" />
             <Text style={cardStyles.scanMealText}>Scan this meal</Text>
           </AnimatedPressable>
         </View>
@@ -124,10 +209,10 @@ function RecipeCard({ recipe, expanded, onToggle, onScanMeal }: RecipeCardProps)
 
 const cardStyles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E8E6E0',
     overflow: 'hidden',
     marginBottom: 12,
   },
@@ -137,53 +222,59 @@ const cardStyles = StyleSheet.create({
   name: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#1A1A1A',
   },
   description: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
+    color: '#7A6A5A',
+    lineHeight: 21,
     marginTop: 6,
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 8,
     marginTop: 12,
+    flexWrap: 'wrap',
   },
-  stat: {
+  statPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: '#F5F3EF',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   statText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: '#7A6A5A',
   },
   toggleRow: {
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
+    borderTopColor: '#E8E6E0',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   toggleText: {
     fontSize: 14,
-    color: COLORS.primary,
+    color: '#4A7C59',
     fontWeight: '500',
   },
   expandedSection: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
-    backgroundColor: COLORS.surfaceSecondary,
+    borderTopColor: '#E8E6E0',
+    backgroundColor: '#FAFAF8',
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: COLORS.textSecondary,
-    letterSpacing: 0.3,
+    color: '#7A6A5A',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   ingredientRow: {
@@ -195,7 +286,7 @@ const cardStyles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#4A7C59',
     marginRight: 8,
   },
   ingredientText: {
@@ -207,12 +298,22 @@ const cardStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 8,
+    gap: 10,
+  },
+  stepNumCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   stepNumber: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.primary,
-    width: 20,
+    color: '#4A7C59',
+    textAlign: 'center',
   },
   stepText: {
     fontSize: 14,
@@ -226,14 +327,14 @@ const cardStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     height: 44,
-    backgroundColor: COLORS.primaryMuted,
-    borderRadius: 8,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
+    borderRadius: 10,
     marginTop: 16,
   },
   scanMealText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#4A7C59',
   },
 });
 
@@ -378,7 +479,8 @@ export default function RecipesScreen() {
 
   const isGetRecipesDisabled = ingredientsText.trim() === '' || loading;
   const getRecipesOpacity = isGetRecipesDisabled ? 0.4 : 1;
-  const inputBorderColor = inputFocused ? COLORS.primary : COLORS.border;
+  const inputBorderColor = inputFocused ? '#4A7C59' : '#E8E6E0';
+  const inputBorderWidth = inputFocused ? 1.5 : 1;
 
   const showEmptyState = recipes.length === 0 && !loading && !error;
 
@@ -398,9 +500,9 @@ export default function RecipesScreen() {
 
         {/* Input card */}
         <View style={styles.inputCard}>
-          <Text style={styles.inputLabel}>Your ingredients</Text>
+          <Text style={styles.inputLabel}>YOUR INGREDIENTS</Text>
           <TextInput
-            style={[styles.textInput, { borderColor: inputBorderColor, borderWidth: 1 }]}
+            style={[styles.textInput, { borderColor: inputBorderColor, borderWidth: inputBorderWidth }]}
             multiline
             placeholder="e.g. chicken breast, broccoli, olive oil, garlic..."
             placeholderTextColor={COLORS.textTertiary}
@@ -425,7 +527,7 @@ export default function RecipesScreen() {
           {/* Extracting indicator */}
           {extractingIngredients && (
             <View style={styles.extractingRow}>
-              <ActivityIndicator size="small" color={COLORS.primary} />
+              <SinglePulsingDot />
               <Text style={styles.extractingText}>Identifying ingredients...</Text>
             </View>
           )}
@@ -436,18 +538,14 @@ export default function RecipesScreen() {
             disabled={isGetRecipesDisabled}
             style={[styles.getRecipesButton, { opacity: getRecipesOpacity }]}
           >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.getRecipesText}>Get recipes</Text>
-            )}
+            <Text style={styles.getRecipesText}>Get recipes</Text>
           </AnimatedPressable>
         </View>
 
         {/* Error state */}
         {error !== null && (
           <View style={styles.errorContainer}>
-            <AlertCircle size={20} color={COLORS.danger} />
+            <AlertCircle size={18} color="#C0392B" />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -455,7 +553,7 @@ export default function RecipesScreen() {
         {/* Loading state */}
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+            <PulsingDots />
             <Text style={styles.loadingText}>Finding recipes for your ingredients...</Text>
           </View>
         )}
@@ -463,9 +561,12 @@ export default function RecipesScreen() {
         {/* Empty state */}
         {showEmptyState && (
           <View style={styles.emptyState}>
-            <UtensilsCrossed size={32} color={COLORS.textTertiary} strokeWidth={1.5} />
-            <Text style={styles.emptyText}>
-              Enter your ingredients above to get personalized recipe ideas.
+            <View style={styles.emptyIconCircle}>
+              <UtensilsCrossed size={40} color="#4A7C59" strokeWidth={1.5} />
+            </View>
+            <Text style={styles.emptyTitle}>What's in your kitchen?</Text>
+            <Text style={styles.emptySubtitle}>
+              Enter your ingredients above and we'll suggest GLP-1 friendly recipes.
             </Text>
           </View>
         )}
@@ -520,24 +621,24 @@ const styles = StyleSheet.create({
   inputCard: {
     marginHorizontal: 16,
     marginTop: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E8E6E0',
     padding: 16,
   },
   inputLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textSecondary,
-    letterSpacing: 0.3,
+    color: '#7A6A5A',
+    letterSpacing: 0.5,
     marginBottom: 8,
   },
   textInput: {
-    minHeight: 80,
-    backgroundColor: COLORS.surfaceSecondary,
+    minHeight: 88,
+    backgroundColor: '#F5F3EF',
     borderRadius: 10,
-    padding: 12,
+    padding: 14,
     fontSize: 15,
     color: COLORS.text,
     textAlignVertical: 'top',
@@ -550,8 +651,8 @@ const styles = StyleSheet.create({
   photoButton: {
     flex: 1,
     height: 44,
-    backgroundColor: COLORS.surfaceSecondary,
-    borderRadius: 8,
+    backgroundColor: '#F5F3EF',
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -564,23 +665,23 @@ const styles = StyleSheet.create({
   extractingRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginTop: 10,
   },
   extractingText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
-    marginLeft: 8,
+    color: '#7A6A5A',
   },
   getRecipesButton: {
     marginTop: 16,
-    height: 52,
+    height: 56,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   getRecipesText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -590,14 +691,14 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 16,
     marginTop: 12,
-    backgroundColor: COLORS.dangerMuted,
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: 'rgba(192, 57, 43, 0.08)',
+    borderRadius: 10,
+    padding: 14,
   },
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.danger,
+    color: '#C0392B',
     lineHeight: 20,
   },
   loadingContainer: {
@@ -607,20 +708,36 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     textAlign: 'center',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 48,
     paddingHorizontal: 32,
     gap: 12,
   },
-  emptyText: {
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+  },
+  emptySubtitle: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     textAlign: 'center',
     lineHeight: 22,
+    maxWidth: 280,
   },
   recipesContainer: {
     marginHorizontal: 16,

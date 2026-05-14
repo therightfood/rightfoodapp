@@ -62,7 +62,7 @@
         }
       ]
     ],
-    "scheme": "nutriport",
+    "scheme": "rightfood",
     "experiments": {
       "typedRoutes": true
     },

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Animated,
-  ActivityIndicator,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,8 +23,32 @@ export default function WelcomeScreen() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(20)).current;
+  // Loading wordmark pulse
+  const loadingOpacity = useRef(new Animated.Value(0.6)).current;
+
+  // Entrance animations
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const logoTranslateY = useRef(new Animated.Value(12)).current;
+  const headlineOpacity = useRef(new Animated.Value(0)).current;
+  const headlineTranslateY = useRef(new Animated.Value(12)).current;
+  const subtextOpacity = useRef(new Animated.Value(0)).current;
+  const buttonsOpacity = useRef(new Animated.Value(0)).current;
+  const buttonsTranslateY = useRef(new Animated.Value(8)).current;
+
+  // Loading pulse animation
+  useEffect(() => {
+    if (loading && Platform.OS !== 'web') {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(loadingOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(loadingOpacity, { toValue: 0.6, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      pulse.start();
+      return () => { pulse.stop(); };
+    }
+    return undefined;
+  }, [loading, loadingOpacity]);
 
   useEffect(() => {
     if (!loading) {
@@ -48,30 +71,36 @@ export default function WelcomeScreen() {
           });
       } else {
         console.log('[Welcome] No user found, showing welcome screen');
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 400,
-            delay: 100,
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-          Animated.timing(translateY, {
-            toValue: 0,
-            duration: 400,
-            delay: 100,
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-        ]).start();
+        if (Platform.OS !== 'web') {
+          Animated.parallel([
+            Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+            Animated.timing(logoTranslateY, { toValue: 0, duration: 400, useNativeDriver: true }),
+            Animated.timing(headlineOpacity, { toValue: 1, duration: 350, delay: 200, useNativeDriver: true }),
+            Animated.timing(headlineTranslateY, { toValue: 0, duration: 350, delay: 200, useNativeDriver: true }),
+            Animated.timing(subtextOpacity, { toValue: 1, duration: 300, delay: 350, useNativeDriver: true }),
+            Animated.timing(buttonsOpacity, { toValue: 1, duration: 300, delay: 500, useNativeDriver: true }),
+            Animated.timing(buttonsTranslateY, { toValue: 0, duration: 300, delay: 500, useNativeDriver: true }),
+          ]).start();
+        }
       }
     }
-  }, [loading, user, opacity, router, translateY]);
+  }, [loading, user, router, logoOpacity, logoTranslateY, headlineOpacity, headlineTranslateY, subtextOpacity, buttonsOpacity, buttonsTranslateY]);
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-                <NotificationBell />
-        
-<ActivityIndicator size="large" color={COLORS.primary} />
+        <NotificationBell />
+        {Platform.OS !== 'web' ? (
+          <Animated.View style={[styles.loadingWordmarkRow, { opacity: loadingOpacity }]}>
+            <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
+            <Text style={styles.loadingWordmark}>Right Food</Text>
+          </Animated.View>
+        ) : (
+          <View style={styles.loadingWordmarkRow}>
+            <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
+            <Text style={styles.loadingWordmark}>Right Food</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -79,7 +108,10 @@ export default function WelcomeScreen() {
   if (user) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.loadingWordmarkRow}>
+          <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
+          <Text style={styles.loadingWordmark}>Right Food</Text>
+        </View>
       </View>
     );
   }
@@ -94,55 +126,84 @@ export default function WelcomeScreen() {
     router.push('/sign-in');
   };
 
-  const children = (
-    <>
-      {/* Top section */}
-      <View style={styles.topSection}>
-        <View style={styles.wordmarkRow}>
-          <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
-          <Text style={styles.wordmark}>Right Food</Text>
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          {/* Top section */}
+          <View style={styles.topSection}>
+            <View style={styles.wordmarkRow}>
+              <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
+              <Text style={styles.wordmark}>Right Food</Text>
+            </View>
+
+            <Text style={styles.headline}>Eat the right amount. Every meal.</Text>
+            <Text style={styles.subtext}>
+              Your AI meal companion for GLP-1 medications.
+            </Text>
+          </View>
+
+          {/* Bottom section */}
+          <View style={styles.bottomSection}>
+            <AnimatedPressable onPress={handleGetStarted} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Get started</Text>
+            </AnimatedPressable>
+
+            <AnimatedPressable onPress={handleSignIn} style={styles.signInRow}>
+              <Text style={styles.signInText}>Already have an account?</Text>
+              <Text style={styles.signInLink}> Sign in</Text>
+            </AnimatedPressable>
+          </View>
         </View>
-
-        <View style={styles.divider} />
-
-        <Text style={styles.headline}>Eat the right amount. Every meal.</Text>
-        <Text style={styles.subtext}>
-          Your AI meal companion for GLP-1 medications.
-        </Text>
-      </View>
-
-      {/* Bottom section */}
-      <View style={styles.bottomSection}>
-        <AnimatedPressable onPress={handleGetStarted} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Get started</Text>
-        </AnimatedPressable>
-
-        <View style={styles.signInRow}>
-          <Text style={styles.signInText}>Already have an account?</Text>
-          <AnimatedPressable onPress={handleSignIn}>
-            <Text style={styles.signInLink}> Sign in</Text>
-          </AnimatedPressable>
-        </View>
-      </View>
-    </>
-  );
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {Platform.OS === 'web' ? (
-        <View style={styles.container}>
-          {children}
+      <View style={styles.container}>
+        {/* Top section */}
+        <View style={styles.topSection}>
+          <Animated.View
+            style={[
+              styles.wordmarkRow,
+              { opacity: logoOpacity, transform: [{ translateY: logoTranslateY }] },
+            ]}
+          >
+            <Leaf size={28} color={COLORS.primary} strokeWidth={2} />
+            <Text style={styles.wordmark}>Right Food</Text>
+          </Animated.View>
+
+          <Animated.View
+            style={{ opacity: headlineOpacity, transform: [{ translateY: headlineTranslateY }] }}
+          >
+            <Text style={styles.headline}>Eat the right amount. Every meal.</Text>
+          </Animated.View>
+
+          <Animated.View style={{ opacity: subtextOpacity }}>
+            <Text style={styles.subtext}>
+              Your AI meal companion for GLP-1 medications.
+            </Text>
+          </Animated.View>
         </View>
-      ) : (
+
+        {/* Bottom section */}
         <Animated.View
           style={[
-            styles.container,
-            { opacity, transform: [{ translateY }] },
+            styles.bottomSection,
+            { opacity: buttonsOpacity, transform: [{ translateY: buttonsTranslateY }] },
           ]}
         >
-          {children}
+          <AnimatedPressable onPress={handleGetStarted} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Get started</Text>
+          </AnimatedPressable>
+
+          <AnimatedPressable onPress={handleSignIn} style={styles.signInRow}>
+            <Text style={styles.signInText}>Already have an account?</Text>
+            <Text style={styles.signInLink}> Sign in</Text>
+          </AnimatedPressable>
         </Animated.View>
-      )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -150,13 +211,24 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FAFAF8',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingWordmarkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingWordmark: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.primary,
+    letterSpacing: -0.5,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FAFAF8',
   },
   container: {
     flex: 1,
@@ -168,11 +240,13 @@ const styles = StyleSheet.create({
   topSection: {
     flex: 1,
     justifyContent: 'center',
+    gap: 0,
   },
   wordmarkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginBottom: 32,
   },
   wordmark: {
     fontSize: 32,
@@ -180,38 +254,33 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     letterSpacing: -0.5,
   },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginTop: 32,
-    marginBottom: 32,
-  },
   headline: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
     color: COLORS.text,
-    letterSpacing: -0.3,
-    lineHeight: 36,
+    letterSpacing: -0.5,
+    lineHeight: 40,
   },
   subtext: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '400',
-    color: COLORS.textSecondary,
-    lineHeight: 24,
+    color: '#7A6A5A',
+    lineHeight: 26,
     marginTop: 12,
   },
   bottomSection: {
     paddingBottom: 8,
   },
   primaryButton: {
-    height: 52,
+    height: 56,
     backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+    boxShadow: '0 4px 16px rgba(74, 124, 89, 0.25)',
+  } as any,
   primaryButtonText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -219,15 +288,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    paddingVertical: 16,
   },
   signInText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#7A6A5A',
   },
   signInLink: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#7A6A5A',
+    textDecorationLine: 'underline',
   },
 });

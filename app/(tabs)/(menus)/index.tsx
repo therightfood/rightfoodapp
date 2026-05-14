@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
+  Animated,
+  Platform,
   ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +49,61 @@ interface MenuAnalysisResult {
   dose_mg: number | null;
 }
 
+// ─── Pulsing Dots ─────────────────────────────────────────────────────────────
+
+function PulsingDots() {
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const makePulse = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+          Animated.delay(600 - delay),
+        ])
+      );
+
+    const a1 = makePulse(dot1, 0);
+    const a2 = makePulse(dot2, 200);
+    const a3 = makePulse(dot3, 400);
+    a1.start();
+    a2.start();
+    a3.start();
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={pulseStyles.row}>
+        <View style={pulseStyles.dot} />
+        <View style={pulseStyles.dot} />
+        <View style={pulseStyles.dot} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={pulseStyles.row}>
+      <Animated.View style={[pulseStyles.dot, { opacity: dot1 }]} />
+      <Animated.View style={[pulseStyles.dot, { opacity: dot2 }]} />
+      <Animated.View style={[pulseStyles.dot, { opacity: dot3 }]} />
+    </View>
+  );
+}
+
+const pulseStyles = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4A7C59' },
+});
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RecommendationCard({
@@ -62,6 +118,9 @@ function RecommendationCard({
   const protein = item.estimated_protein_g;
   const hasPrice = item.price && item.price.trim().length > 0;
 
+  const caloriesText = String(calories) + ' kcal';
+  const proteinText = String(protein) + 'g protein';
+
   const handleScan = () => {
     console.log('[Menus] Scan recommended dish pressed:', item.name);
     router.push('/(tabs)/(scan)');
@@ -72,22 +131,22 @@ function RecommendationCard({
       <Text style={styles.recommendationName}>{item.name}</Text>
       <Text style={styles.recommendationReason}>{item.recommendation_reason}</Text>
       <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Flame size={13} color={COLORS.accent} />
-          <Text style={styles.statText}>{calories}</Text>
-          <Text style={styles.statText}> kcal</Text>
+        <View style={styles.statPill}>
+          <Flame size={12} color={COLORS.accent} />
+          <Text style={styles.statText}>{caloriesText}</Text>
         </View>
-        <View style={styles.statItem}>
-          <Zap size={13} color={COLORS.primary} />
-          <Text style={styles.statText}>{protein}</Text>
-          <Text style={styles.statText}>g protein</Text>
+        <View style={styles.statPill}>
+          <Zap size={12} color="#4A7C59" />
+          <Text style={styles.statText}>{proteinText}</Text>
         </View>
         {hasPrice && (
-          <Text style={styles.statText}>{item.price}</Text>
+          <View style={styles.statPill}>
+            <Text style={styles.statText}>{item.price}</Text>
+          </View>
         )}
       </View>
       <AnimatedPressable style={styles.scanDishButton} onPress={handleScan}>
-        <Camera size={13} color={COLORS.primary} />
+        <Camera size={13} color="#4A7C59" />
         <Text style={styles.scanDishText}>Scan this dish</Text>
       </AnimatedPressable>
     </View>
@@ -244,7 +303,7 @@ export default function MenusScreen() {
 
           <View style={styles.uploadCard}>
             <View style={styles.uploadIconCircle}>
-              <ScrollText size={36} color={COLORS.primary} strokeWidth={1.5} />
+              <ScrollText size={40} color="#4A7C59" strokeWidth={1.5} />
             </View>
             <Text style={styles.uploadCardTitle}>Take a photo of a menu</Text>
             <Text style={styles.uploadCardSubtitle}>
@@ -258,14 +317,14 @@ export default function MenusScreen() {
               <Text style={styles.primaryButtonText}>Take photo</Text>
             </AnimatedPressable>
             <AnimatedPressable style={styles.secondaryButton} onPress={handleChooseFromLibrary}>
-              <ImageIcon size={16} color={COLORS.textSecondary} />
+              <ImageIcon size={16} color="#1A1A1A" />
               <Text style={styles.secondaryButtonText}>Choose from library</Text>
             </AnimatedPressable>
           </View>
 
           {error !== null && (
             <View style={styles.errorContainer}>
-              <AlertCircle size={18} color={COLORS.danger} />
+              <AlertCircle size={18} color="#C0392B" />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
@@ -280,7 +339,7 @@ export default function MenusScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <PulsingDots />
           <Text style={styles.loadingTitle}>Reading the menu...</Text>
           <Text style={styles.loadingSubtitle}>This takes a few seconds</Text>
         </View>
@@ -315,6 +374,9 @@ export default function MenusScreen() {
   ];
 
   const totalItems = result.extracted_items.length;
+  const medicationLabel = medicationName
+    ? `Optimized for ${medicationName} ${result.dose_mg}mg`
+    : '';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -332,10 +394,8 @@ export default function MenusScreen() {
         {hasMedication && (
           <View style={styles.medicationPillWrapper}>
             <View style={styles.medicationPill}>
-              <Pill size={12} color={COLORS.primary} />
-              <Text style={styles.medicationPillText}>
-                Optimized for {medicationName} {result.dose_mg}mg
-              </Text>
+              <Pill size={13} color="#4A7C59" />
+              <Text style={styles.medicationPillText}>{medicationLabel}</Text>
             </View>
           </View>
         )}
@@ -381,6 +441,7 @@ export default function MenusScreen() {
               <View key={category}>
                 <View style={styles.categoryHeader}>
                   <Text style={styles.categoryLabel}>{categoryLabel}</Text>
+                  <View style={styles.categoryLine} />
                 </View>
                 <View style={styles.categoryItems}>
                   {items.map((item, idx) => {
@@ -438,24 +499,23 @@ const styles = StyleSheet.create({
   uploadCard: {
     marginHorizontal: 16,
     marginTop: 16,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: COLORS.border,
-    padding: 32,
+    borderWidth: 1,
+    borderColor: '#E8E6E0',
+    padding: 40,
     alignItems: 'center',
   },
   uploadIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.primaryMuted,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   uploadCardTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
     textAlign: 'center',
@@ -463,7 +523,7 @@ const styles = StyleSheet.create({
   },
   uploadCardSubtitle: {
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 20,
@@ -477,8 +537,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     flex: 1,
     height: 52,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    backgroundColor: '#4A7C59',
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -492,8 +552,8 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     height: 52,
-    backgroundColor: COLORS.surfaceSecondary,
-    borderRadius: 8,
+    backgroundColor: '#F5F3EF',
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -502,7 +562,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontSize: 15,
     fontWeight: '500',
-    color: COLORS.text,
+    color: '#1A1A1A',
   },
   errorContainer: {
     marginHorizontal: 16,
@@ -517,7 +577,7 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.danger,
+    color: '#C0392B',
     lineHeight: 20,
   },
 
@@ -526,17 +586,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 16,
   },
   loadingTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: COLORS.text,
-    marginTop: 16,
+    color: '#1A1A1A',
   },
   loadingSubtitle: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 6,
+    color: '#7A6A5A',
   },
 
   // Results
@@ -571,7 +630,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   medicationPill: {
-    backgroundColor: COLORS.primaryMuted,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -583,7 +642,7 @@ const styles = StyleSheet.create({
   medicationPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#4A7C59',
   },
   sectionHeader: {
     paddingHorizontal: 20,
@@ -604,10 +663,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   recommendationCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
+    borderWidth: 1,
+    borderColor: '#E8E6E0',
+    borderLeftWidth: 3,
+    borderLeftColor: '#4A7C59',
     padding: 16,
   },
   recommendationName: {
@@ -617,30 +678,35 @@ const styles = StyleSheet.create({
   },
   recommendationReason: {
     fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
+    color: '#7A6A5A',
+    lineHeight: 19,
     marginTop: 4,
     fontStyle: 'italic',
   },
   statsRow: {
     marginTop: 10,
     flexDirection: 'row',
-    gap: 16,
+    gap: 8,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
-  statItem: {
+  statPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
+    backgroundColor: '#F5F3EF',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   statText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: '#7A6A5A',
   },
   scanDishButton: {
     marginTop: 12,
     height: 40,
-    backgroundColor: COLORS.primaryMuted,
+    backgroundColor: 'rgba(74, 124, 89, 0.10)',
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -650,7 +716,7 @@ const styles = StyleSheet.create({
   scanDishText: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: '#4A7C59',
   },
   divider: {
     marginVertical: 20,
@@ -662,19 +728,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   categoryLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     letterSpacing: 0.5,
+  },
+  categoryLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E8E6E0',
   },
   categoryItems: {
     marginHorizontal: 16,
     gap: 1,
   },
   menuItemRow: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#FFFFFF',
     padding: 14,
     borderRadius: 0,
     position: 'relative',
@@ -688,17 +762,16 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 10,
   },
   menuItemRecommended: {
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(74, 124, 89, 0.04)',
   },
   recommendedDot: {
     position: 'absolute',
     top: 10,
     right: 10,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.primary,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4A7C59',
   },
   menuItemName: {
     fontSize: 15,
@@ -707,7 +780,7 @@ const styles = StyleSheet.create({
   },
   menuItemDescription: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: '#7A6A5A',
     marginTop: 2,
   },
   menuItemBottom: {
@@ -718,11 +791,11 @@ const styles = StyleSheet.create({
   },
   menuItemMacro: {
     fontSize: 12,
-    color: COLORS.textTertiary,
+    color: '#B0A090',
   },
   menuItemPrice: {
     fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.text,
+    fontWeight: '600',
+    color: '#1A1A1A',
   },
 });
