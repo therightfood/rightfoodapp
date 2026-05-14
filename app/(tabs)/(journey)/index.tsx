@@ -15,7 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { ChevronRight, BookOpen, AlertCircle, Camera, Share2 } from 'lucide-react-native';
 import { COLORS } from '@/constants/Colors';
 import { apiGet } from '@/utils/api';
-import AnimatedPressable from '@/components/AnimatedPressable';
+import { AnimatedPressable } from '@/components/AnimatedPressable';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
