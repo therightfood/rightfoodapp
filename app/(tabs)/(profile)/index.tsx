@@ -28,6 +28,7 @@ import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { useAuth } from '@/contexts/AuthContext';
 import { authClient } from '@/lib/auth';
 import { apiGet, apiPut, apiDelete } from '@/utils/api';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,7 @@ function SectionLabel({ label }: { label: string }) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { hasPermission, setShowPrimingModal, saveTimezone } = useNotifications();
 
   // Data
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -224,12 +226,20 @@ export default function ProfileScreen() {
 
   const handleToggleReminder = useCallback((value: boolean) => {
     console.log('[Profile] Reminder toggle pressed:', value);
+    if (value && !hasPermission) {
+      console.log('[Profile] No notification permission — showing priming modal');
+      setShowPrimingModal(true);
+      return;
+    }
+    if (value) {
+      saveTimezone().catch(() => {});
+    }
     if (Platform.OS !== 'web') {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     }
     setReminderEnabled(value);
     saveReminders(value, reminderTimes);
-  }, [reminderTimes, saveReminders]);
+  }, [reminderTimes, saveReminders, hasPermission, setShowPrimingModal, saveTimezone]);
 
   const handleAddReminderSlot = useCallback(() => {
     console.log('[Profile] Add reminder slot pressed');

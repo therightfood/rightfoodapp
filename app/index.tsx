@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Leaf } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { NotificationBell } from "@/components/NotificationBell";
 import { COLORS } from '@/constants/Colors';
 import { apiGet } from '@/utils/api';
 
@@ -68,7 +69,9 @@ export default function WelcomeScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+                <NotificationBell />
+        
+<ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }

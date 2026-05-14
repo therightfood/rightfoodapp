@@ -17,7 +17,16 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Right Food needs camera access to photograph your meals.",
-        "NSPhotoLibraryUsageDescription": "Right Food needs photo library access to select meal photos."
+        "NSPhotoLibraryUsageDescription": "Right Food needs photo library access to select meal photos.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "entitlements": {
+        "aps-environment": "production",
+        "com.apple.security.application-groups": [
+          "group.com.placeholder.app.onesignal"
+        ]
       }
     },
     "android": {
@@ -26,18 +35,32 @@
         "backgroundColor": "#000000"
       },
       "package": "com.placeholder.app",
-      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "favicon": "./assets/images/final_quest_240x240.png",
       "bundler": "metro"
     },
     "plugins": [
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "production"
+        }
+      ],
       "expo-font",
       "expo-router",
       "expo-web-browser",
       "expo-secure-store",
-      ["expo-camera", { "cameraPermission": "Right Food needs camera access to photograph your meals." }]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Right Food needs camera access to photograph your meals."
+        }
+      ]
     ],
     "scheme": "nutriport",
     "experiments": {
@@ -45,7 +68,8 @@
     },
     "extra": {
       "router": {},
-      "backendUrl": "https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev"
+      "backendUrl": "https://3pqctptn272ematfhedrjv4we23tdyxd.app.specular.dev",
+      "oneSignalAppId": "af4b7d19-9b67-46de-a26d-76ec3c380840"
     }
   }
 }

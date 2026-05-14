@@ -20,6 +20,7 @@ import { Check, CheckCircle, Search } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/AnimatedPressable';
 import { COLORS } from '@/constants/Colors';
 import { apiPut } from '@/utils/api';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -615,6 +616,7 @@ function Step4({
   dose: string;
 }) {
   const router = useRouter();
+  const { setShowPrimingModal, saveTimezone } = useNotifications();
   const [loading, setLoading] = useState(false);
 
   const subtitleText = `Right Food will now calibrate your portions to your ${medication} ${dose} dose.`;
@@ -626,9 +628,13 @@ function Step4({
       await apiPut('/api/profile', { onboarding_completed: true });
       console.log('[Onboarding Step 4] Onboarding marked complete, navigating to home');
       router.replace('/(tabs)/(scan)' as never);
+      saveTimezone().catch(() => {});
+      setTimeout(() => setShowPrimingModal(true), 1000);
     } catch (err) {
       console.error('[Onboarding Step 4] Failed to mark onboarding complete:', err);
       router.replace('/(tabs)/(scan)' as never);
+      saveTimezone().catch(() => {});
+      setTimeout(() => setShowPrimingModal(true), 1000);
     } finally {
       setLoading(false);
     }

@@ -1,11 +1,11 @@
 import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { SystemBars } from "react-native-edge-to-edge";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { useColorScheme, Alert } from "react-native";
+import { useColorScheme, Alert, Platform } from "react-native";
 import { useNetworkState } from "expo-network";
 import {
   DarkTheme,
@@ -16,6 +16,8 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { WidgetProvider } from "@/contexts/WidgetContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
+import { NotificationPrimingModal } from "@/components/NotificationPrimingModal";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Only wrap with ErrorBoundary in dev — production apps should not include it
@@ -33,6 +35,7 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const networkState = useNetworkState();
+  const router = useRouter();
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -54,6 +57,24 @@ export default function RootLayout() {
       );
     }
   }, [networkState.isConnected, networkState.isInternetReachable]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      try {
+        const { OneSignal } = await import('react-native-onesignal');
+        OneSignal.Notifications.addEventListener('click', (event: any) => {
+          console.log('[OneSignal] Notification clicked:', event.notification?.additionalData);
+          const data = event.notification.additionalData as any;
+          if (data?.screen === 'scan') {
+            router.push('/(tabs)/(scan)');
+          }
+        });
+      } catch (err) {
+        console.error('[OneSignal] Failed to set up click handler:', err);
+      }
+    })();
+  }, []);
 
   const CustomDefaultTheme: Theme = {
     ...DefaultTheme,
@@ -88,6 +109,7 @@ export default function RootLayout() {
       >
         <SafeAreaProvider>
           <AuthProvider>
+          <NotificationProvider>
             <WidgetProvider>
               <GestureHandlerRootView>
                 <Stack>
@@ -100,10 +122,12 @@ export default function RootLayout() {
                   <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
                   <Stack.Screen name="scan-result" options={{ headerShown: false }} />
                 </Stack>
+                <NotificationPrimingModal />
                 <SystemBars style={"auto"} />
               </GestureHandlerRootView>
             </WidgetProvider>
-          </AuthProvider>
+          </NotificationProvider>
+        </AuthProvider>
         </SafeAreaProvider>
       </ThemeProvider>
     </DevErrorBoundary>
