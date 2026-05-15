@@ -71,7 +71,24 @@
     },
     "extra": {
       "eas": {
-        "projectId": "bfc969c4-0e95-4db9-abfb-93b3ddbb2bd0"
+        "projectId": "bfc969c4-0e95-4db9-abfb-93b3ddbb2bd0",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.rightfood.app.OneSignalNotificationServiceExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.rightfood.app.onesignal"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
       },
       "router": {},
       "backendUrl": "https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev",
