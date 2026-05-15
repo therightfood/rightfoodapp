@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rightfood.app",
+      "appleTeamId": "4G3TGPL24H",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Right Food needs camera access to photograph your meals.",
