@@ -12,23 +12,19 @@
       "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.placeholder.app",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Right Food needs camera access to photograph your meals.",
-        "NSPhotoLibraryUsageDescription": "Right Food needs photo library access to select meal photos.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
-      },
-      "entitlements": {
-        "aps-environment": "production",
-        "com.apple.security.application-groups": [
-          "group.com.placeholder.app.onesignal"
-        ]
-      }
-    },
+  "bundleIdentifier": "com.rightfood.app",
+  "appleTeamId": "4G3TGPL24H",
+  "supportsTablet": false,
+  "infoPlist": {
+    "UIBackgroundModes": ["remote-notification"]
+  },
+  "entitlements": {
+    "aps-environment": "production",
+    "com.apple.security.application-groups": [
+      "group.com.rightfood.app.onesignal"
+    ]
+  }
+},
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon-jyn.png",
@@ -45,12 +41,14 @@
       "bundler": "metro"
     },
     "plugins": [
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "production"
-        }
-      ],
+  [
+    "onesignal-expo-plugin",
+    {
+      "mode": "production",
+      "iPhoneDeploymentTarget": "15.1"
+    }
+  ]
+],
       "expo-font",
       "expo-router",
       "expo-web-browser",
