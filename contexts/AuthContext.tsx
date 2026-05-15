@@ -110,7 +110,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      await authClient.signIn.email({ email, password });
+      console.log("signInWithEmail: attempting sign in for", email);
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error) {
+        throw new Error(result.error.message || 'Sign in failed');
+      }
       await fetchUser();
     } catch (error) {
       console.error("Email sign in failed:", error);
@@ -120,7 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpWithEmail = async (email: string, password: string, name?: string) => {
     try {
-      await authClient.signUp.email({ email, password, name: name ?? email });
+      console.log("signUpWithEmail: attempting sign up for", email);
+      const result = await authClient.signUp.email({ email, password, name: name ?? email });
+      if (result.error) {
+        throw new Error(result.error.message || 'Sign up failed');
+      }
       await fetchUser();
     } catch (error) {
       console.error("Email sign up failed:", error);
