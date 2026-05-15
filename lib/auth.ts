@@ -21,8 +21,8 @@ export const authClient = createAuthClient({
   baseURL: API_URL,
   plugins: [
     expoClient({
-      scheme: "nutriport",
-      storagePrefix: "nutriport",
+      scheme: "rightfood",
+      storagePrefix: "rightfood",
       storage,
     }),
   ],
