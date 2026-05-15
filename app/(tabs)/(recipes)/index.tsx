@@ -364,7 +364,7 @@ export default function RecipesScreen() {
 
       console.log('[Recipes] POST /api/recipes/extract-ingredients');
       const res = await fetch(
-        'https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev/api/recipes/extract-ingredients',
+        'https://pmqb5ex8jduktbk9hrnr9rfqmaped4be.app.specular.dev/api/recipes/extract-ingredients',
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -403,7 +403,7 @@ export default function RecipesScreen() {
 
       console.log('[Recipes] POST /api/recipes/generate');
       const res = await fetch(
-        'https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev/api/recipes/generate',
+        'https://pmqb5ex8jduktbk9hrnr9rfqmaped4be.app.specular.dev/api/recipes/generate',
         {
           method: 'POST',
           headers: {

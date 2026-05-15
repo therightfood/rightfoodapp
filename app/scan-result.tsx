@@ -24,7 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
-const BACKEND_URL = 'https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev';
+const BACKEND_URL = 'https://pmqb5ex8jduktbk9hrnr9rfqmaped4be.app.specular.dev';
 
 // Arc constants
 const ARC_WIDTH = 260;

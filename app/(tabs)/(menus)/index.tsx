@@ -218,7 +218,7 @@ export default function MenusScreen() {
       formData.append('image', { uri, type: 'image/jpeg', name: 'menu.jpg' } as any);
 
       const res = await fetch(
-        'https://kpfycbf2n3wy2nx3my6e5m8dypgb5z5y.app.specular.dev/api/menus/analyze',
+        'https://pmqb5ex8jduktbk9hrnr9rfqmaped4be.app.specular.dev/api/menus/analyze',
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
