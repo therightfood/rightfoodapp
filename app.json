@@ -30,7 +30,7 @@
         "foregroundImage": "./assets/images/app-icon-jyn.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.placeholder.app",
+      "package": "com.rightfood.app",
       "permissions": [
         "CAMERA",
         "READ_MEDIA_IMAGES"
