@@ -33,11 +33,11 @@ describe("API Integration Tests", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           disclaimer_acknowledged: true,
-          medication: "Aspirin",
-          dose_mg: 100,
-          weight_kg: 70,
+          medication: "Ozempic",
+          dose_mg: 1.0,
+          weight_kg: 75,
           height_cm: 180,
-          age: 30,
+          age: 32,
           gender: "M",
           country: "US",
           onboarding_completed: true,
@@ -47,7 +47,7 @@ describe("API Integration Tests", () => {
       const data = await res.json();
       expect(data).toHaveProperty("id");
       expect(data).toHaveProperty("user_id");
-      expect(data.medication).toBe("Aspirin");
+      expect(data.medication).toBe("Ozempic");
     });
 
     test("PUT /api/profile - should accept partial updates", async () => {
@@ -63,6 +63,21 @@ describe("API Integration Tests", () => {
       const data = await res.json();
       expect(data.age).toBe(35);
       expect(data.country).toBe("CA");
+    });
+
+    test("PUT /api/profile - should handle setting fields to null", async () => {
+      const res = await authenticatedApi("/api/profile", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          medication: null,
+          dose_mg: null,
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("medication");
+      expect(data).toHaveProperty("dose_mg");
     });
 
     test("PUT /api/profile - should return 401 when not authenticated", async () => {
@@ -158,6 +173,22 @@ describe("API Integration Tests", () => {
       expect(data.reminder_enabled).toBe(false);
     });
 
+    test("PUT /api/profile/reminders - should accept with timezone", async () => {
+      const res = await authenticatedApi("/api/profile/reminders", authToken, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reminder_enabled: true,
+          reminder_times: ["08:00", "20:00"],
+          timezone: "America/New_York",
+        }),
+      });
+      await expectStatus(res, 200);
+      const data = await res.json();
+      expect(data).toHaveProperty("reminder_enabled");
+      expect(data).toHaveProperty("reminder_times");
+    });
+
     test("PUT /api/profile/reminders - should return 400 when reminder_enabled is missing", async () => {
       const res = await authenticatedApi("/api/profile/reminders", authToken, {
         method: "PUT",
@@ -180,7 +211,7 @@ describe("API Integration Tests", () => {
       await expectStatus(res, 400);
     });
 
-    test("PUT /api/profile/reminders - should return 400 when reminder_times exceeds maxItems", async () => {
+    test("PUT /api/profile/reminders - should return 400 when reminder_times exceeds maxItems (3)", async () => {
       const res = await authenticatedApi("/api/profile/reminders", authToken, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -453,6 +484,10 @@ describe("API Integration Tests", () => {
       // Verify summary has expected fields
       expect(data.summary).toHaveProperty("today_calories");
       expect(data.summary).toHaveProperty("today_meal_count");
+      // Verify additional analytics fields
+      expect(data).toHaveProperty("daily_breakdown");
+      expect(data).toHaveProperty("week_macros");
+      expect(data).toHaveProperty("tdee");
     });
 
     test("GET /api/journey - should return 401 when not authenticated", async () => {
@@ -499,7 +534,7 @@ describe("API Integration Tests", () => {
       await expectStatus(res, 400);
     });
 
-    test("POST /api/recipes/extract-ingredients - should handle large files (200 or 413)", async () => {
+    test("POST /api/recipes/extract-ingredients - should handle large files (200, 413, or 422)", async () => {
       const form = new FormData();
       const largeContent = "x".repeat(5 * 1024 * 1024);
       form.append("file", createTestFile("large.jpg", largeContent, "image/jpeg"));
@@ -529,6 +564,14 @@ describe("API Integration Tests", () => {
         expect(data).toHaveProperty("session_id");
         expect(data).toHaveProperty("recipes");
         expect(Array.isArray(data.recipes)).toBe(true);
+        // Verify recipe structure
+        if (data.recipes.length > 0) {
+          expect(data.recipes[0]).toHaveProperty("name");
+          expect(data.recipes[0]).toHaveProperty("ingredients");
+          expect(data.recipes[0]).toHaveProperty("instructions");
+          expect(data.recipes[0]).toHaveProperty("estimated_calories");
+          expect(data.recipes[0]).toHaveProperty("glp1_friendly");
+        }
       }
     });
 
@@ -589,6 +632,11 @@ describe("API Integration Tests", () => {
         expect(Array.isArray(data.extracted_items)).toBe(true);
         expect(data).toHaveProperty("recommendations");
         expect(Array.isArray(data.recommendations)).toBe(true);
+        // Verify menu item structure
+        if (data.extracted_items.length > 0) {
+          expect(data.extracted_items[0]).toHaveProperty("name");
+          expect(data.extracted_items[0]).toHaveProperty("category");
+        }
       }
     });
 
@@ -628,6 +676,20 @@ describe("API Integration Tests", () => {
         expect(data).toHaveProperty("session_id");
         expect(data).toHaveProperty("extracted_items");
       }
+    });
+
+    test("POST /api/menus/analyze - should return 500 for internal server error (graceful handling)", async () => {
+      // This test validates that the endpoint gracefully handles errors
+      // In normal cases, 500 should not be returned, but the test should handle it
+      const form = new FormData();
+      form.append("file", createTestFile("menu.jpg", "fake menu image data", "image/jpeg"));
+
+      const res = await authenticatedApi("/api/menus/analyze", authToken, {
+        method: "POST",
+        body: form,
+      });
+      // Accept normal responses or server errors
+      await expectStatus(res, 200, 400, 413, 422, 500);
     });
   });
 

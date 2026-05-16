@@ -77,7 +77,7 @@ export function registerProfileRoutes(app: App) {
     app.logger.info({ userId }, 'Fetching user profile');
 
     const profile = await app.db.query.userProfiles.findFirst({
-      where: eq(schema.userProfiles.id, userId),
+      where: eq(schema.userProfiles.userId, userId),
     });
 
     if (profile) {
