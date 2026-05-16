@@ -17,16 +17,11 @@ export const app = await createApplication(schema);
 export type App = typeof app;
 
 // Setup authentication with email/password and password reset
-// Configure for public backend URL to support real mobile devices
+// Configure to support native mobile apps (which don't send Origin header)
 app.withAuth({
-  trustedOrigins: [
-    'https://pmqb5ex8jduktbk9hrnr9rfqmaped4be.app.specular.dev',
-    // Accept requests from localhost for development
-    'http://localhost:3000',
-    'http://localhost:3001',
-    // Accept requests with no Origin header (native mobile apps)
-    '*',
-  ],
+  // Allow all origins including requests with no Origin header (native mobile apps)
+  // Setting to "*" prevents rejection of requests without Origin header
+  trustedOrigins: ['*'],
   emailAndPassword: {
     sendResetPassword: async ({ user, url }) => {
       await resend.emails.send({
